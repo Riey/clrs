@@ -14,4 +14,4 @@ goblin = { version = "0.4.3", default-features = false, features = ["std", "pe32
 scroll = "0.10.2"
 
 [workspace]
-members = [".", "clrs-derive", "clrs-macro"]
+members = [".", "clrs-derive"]

@@ -1,6 +1,6 @@
 use super::{indices::*, PeCtx};
 use bitflags::bitflags;
-use clrs_derive::ClrPread;
+use clrs_derive::{ClrPread, sort_lines};
 use scroll::{ctx::TryFromCtx, Pread};
 
 macro_rules! make_table {
@@ -18,8 +18,10 @@ macro_rules! make_table {
             fn try_from_ctx(src: &'a [u8], ctx: PeCtx) -> Result<(Self, usize), Self::Error> {
                 let offset = &mut 0;
 
-                let table_present_bitvec: u64 = src.gread_with(offset, ctx)?;
+                let mut table_present_bitvec: u64 = src.gread_with(offset, ctx)?;
                 let _sorted_table_bitvec: u64 = src.gread_with(offset, ctx)?;
+
+                eprintln!("{:X}", table_present_bitvec);
 
                 $(
                     let mut $field = (Vec::new(), 0);
@@ -27,13 +29,18 @@ macro_rules! make_table {
 
                 $(
                     if table_present_bitvec & (1 << $index) != 0 {
-                        $field.1 = src.gread_with::<u32>(offset, ctx)?;
+                        $field.1 = dbg!(src.gread_with::<u32>(offset, ctx)?);
+                        table_present_bitvec &= (!(1 << $index));
+                        eprintln!("{}: {}", stringify!($table), $field.1);
                     }
                 )+
+
+                assert_eq!(table_present_bitvec, 0, "Unknown table bitvec presents {:X}", table_present_bitvec);
 
                 $(
                     for _ in 0..$field.1 {
                         $field.0.push(src.gread_with(offset, ctx)?);
+                        eprintln!("{:?}", $field.0.last().unwrap());
                     }
 
                     let $field = $field.0;
@@ -47,7 +54,9 @@ macro_rules! make_table {
     };
 }
 
-make_table! {
+sort_lines! {
+    make_table
+
     assembly: Assembly => 0x20,
     assembly_os: AssemblyOS => 0x22,
     assembly_processor: AssemblyProcessor => 0x21,
@@ -63,6 +72,29 @@ make_table! {
     exported_type: ExportedType => 0x27,
     field: Field => 0x04,
     field_layout: FieldLayout => 0x10,
+    field_marshal: FieldMarshal => 0x0D,
+    field_rva: FieldRVA => 0x1D,
+    file: File => 0x26,
+    generic_param: GenericParam => 0x2A,
+    generic_param_constraint: GenericParamConstraint => 0x2C,
+    impl_map: ImplMap => 0x1C,
+    interface_impl: InterfaceImpl => 0x09,
+    manifest_resource: ManifestResource => 0x28,
+    member_ref: MemberRef => 0x0A,
+    method_def: MethodDef => 0x06,
+    method_impl: MethodImpl => 0x19,
+    method_semantics: MethodSemantics => 0x18,
+    method_spec: MethodSpec => 0x2B,
+    module: Module => 0x00,
+    type_ref: TypeRef => 0x01,
+    type_def: TypeDef => 0x02,
+    module_ref: ModuleRef => 0x1A,
+    nested_class: NestedClass => 0x29,
+    param: Param => 0x08,
+    property: Property => 0x17,
+    property_map: PropertyMap => 0x15,
+    stand_along_sig: StandAloneSig => 0x11,
+    type_spec: TypeSpec => 0x1B,
 }
 
 macro_rules! num_tryctx {
@@ -166,7 +198,7 @@ macro_rules! enum_tryctx {
 num_tryctx!(u8 u16 u32 u64);
 
 bitflags_tryctx! {
-    pub struct AssemblyFlags: u16 {
+    pub struct AssemblyFlags: u32 {
         const PUBLIC_KEY = 0x0001;
         const RETARGETABLE= 0x0100;
         const DISABLE_JIT_COMPILE_OPTIMIZER = 0x4000;
@@ -184,7 +216,7 @@ bitflags_tryctx! {
         // TODO
     }
 
-    pub struct FileAttributes: u16 {
+    pub struct FileAttributes: u32 {
         // TODO
     }
 
@@ -196,7 +228,7 @@ bitflags_tryctx! {
         // TODO
     }
 
-    pub struct ManifestResourceAttributes: u16 {
+    pub struct ManifestResourceAttributes: u32 {
         // TODO
     }
 
@@ -227,11 +259,14 @@ bitflags_tryctx! {
 
 enum_tryctx! {
     #[derive(Clone, Copy, Debug)]
-    pub enum AssemblyHashAlgorithm: u16 {
+    pub enum AssemblyHashAlgorithm: u32 {
         None = 0x0000,
         /// Reserved
         MD5 = 0x8003,
         SHA1 = 0x8004,
+        SHA256 = 0x800C,
+        SHA384 = 0x800D,
+        SHA512 = 0x800E,
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -579,6 +614,15 @@ pub struct Param {
 
 #[repr(C)]
 #[derive(Debug, ClrPread, Clone, Copy)]
+pub struct Property {
+    pub flags: PropertyAttributes,
+    pub name: StringIndex,
+    pub ty: BlobIndex,
+}
+
+
+#[repr(C)]
+#[derive(Debug, ClrPread, Clone, Copy)]
 pub struct PropertyMap {
     pub parent: TypeDefIndex,
     pub property_list: PropertyIndex,
@@ -598,4 +642,18 @@ pub struct TypeDef {
     pub type_namespace: StringIndex,
     pub extends: TypeDefOrRef,
     pub field_list: FieldIndex,
+}
+
+#[repr(C)]
+#[derive(Debug, ClrPread, Clone, Copy)]
+pub struct TypeRef {
+    pub resolution_scope: ResolutionScope,
+    pub type_name: StringIndex,
+    pub type_namespace: StringIndex,
+}
+
+#[repr(C)]
+#[derive(Debug, ClrPread, Clone, Copy)]
+pub struct TypeSpec {
+    pub signature: BlobIndex,
 }

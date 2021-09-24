@@ -1,6 +1,7 @@
 extern crate proc_macro;
 
 use quote::quote;
+use syn::{parse_macro_input, punctuated::Punctuated};
 
 fn impl_struct(
     name: &syn::Ident,
@@ -49,6 +50,50 @@ fn impl_try_from_ctx(
 #[proc_macro_derive(ClrPread)]
 pub fn derive_clr_pread(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     impl_try_from_ctx(&syn::parse_macro_input!(input as syn::DeriveInput)).into()
+}
+
+struct SortLinesInput {
+    callback: syn::Ident,
+    lines: Punctuated<(syn::Ident, syn::Token![:], syn::Type, syn::Token![=>], syn::LitInt), syn::token::Comma>,
+}
+
+impl syn::parse::Parse for SortLinesInput {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let callback = input.parse()?;
+        let lines = input.parse_terminated(|input| {
+            Ok((input.parse()?, input.parse()?, input.parse()?, input.parse()?, input.parse()?))
+        })?;
+
+        Ok(Self {
+            callback,
+            lines,
+        })
+    }
+}
+
+#[proc_macro]
+pub fn sort_lines(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = parse_macro_input!(input as SortLinesInput);
+
+    let mut lines = input.lines.into_iter().collect::<Vec<_>>();
+
+    lines.sort_by_key(|a| {
+        a.4.base10_parse::<u64>().unwrap()
+    });
+
+    let lines = lines.iter().map(|(field, _, ty, _, expr)| {
+        quote! {
+            #field: #ty => #expr,
+        }
+    });
+
+    let cb = input.callback;
+
+    (quote! {
+        #cb!{
+            #(#lines)*
+        }
+    }).into()
 }
 
 #[cfg(test)]
