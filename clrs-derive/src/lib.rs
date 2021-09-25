@@ -31,10 +31,10 @@ fn impl_struct(
 fn impl_try_from_ctx(
     syn::DeriveInput {
         ident,
-        attrs,
+        attrs: _,
         data,
-        generics,
-        vis,
+        generics: _,
+        vis: _,
     }: &syn::DeriveInput,
 ) -> proc_macro2::TokenStream {
     match data {

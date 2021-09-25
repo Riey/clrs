@@ -68,17 +68,16 @@ macro_rules! make_coded_index {
                 let mut tag = n & TAG_MASK;
                 let real = n >> $tag_size;
 
-                dbg!((tag, real));
-
                 $(
+                    #[allow(unused_assignments)]
                     if let Some(new_tag) = tag.checked_sub(1) {
                         tag = new_tag;
                     } else {
                         return Ok((Self::$ty($ty(real)), 2));
                     }
                 )+
-                
-                panic!("Invalid tag: {}", tag)
+
+                Err(scroll::Error::BadInput { msg: "Invalid tag", size: 2 })
             }
         }
 

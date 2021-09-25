@@ -1,5 +1,3 @@
-use enum_map::EnumMap;
-use enumset::EnumSet;
 use goblin::container::Endian;
 use goblin::pe::data_directories::DataDirectory;
 use scroll::ctx::{StrCtx, TryFromCtx};
