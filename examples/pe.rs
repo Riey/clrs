@@ -1,7 +1,7 @@
 use goblin::pe::utils::get_data;
 use goblin::pe::PE;
 
-use clrs::pe::{CliHeader, MetadataRoot};
+use clrs::pe::{raw::*, CliHeader, MetadataRoot};
 
 fn main() {
     let file = include_bytes!("../assets/HelloWorld.dll");
@@ -18,13 +18,9 @@ fn main() {
         .expect("No CLI header");
     let sections = &pe.sections;
 
-    dbg!(sections);
-
     let cli_header_value: CliHeader = get_data(file, sections, cli_header, file_alignment).unwrap();
-    println!("{:#?}", cli_header_value);
     let metadata_root: MetadataRoot =
         get_data(file, sections, cli_header_value.metadata, file_alignment).unwrap();
-    println!("{:#?}", metadata_root);
 
     assert_eq!(
         metadata_root.signature, 0x424a5342,
@@ -32,4 +28,17 @@ fn main() {
     );
     assert_eq!(metadata_root.major_version, 1);
     assert_eq!(metadata_root.minor_version, 1);
+
+    println!("{:b}", cli_header_value.entry_point_token);
+
+    let ty = (cli_header_value.entry_point_token & 0xFF000000) >> 24;
+    let row = cli_header_value.entry_point_token & 0x00FFFFFF;
+
+    assert_eq!(ty, 6, "EntryPoint is not Method");
+
+    let metadata_table = metadata_root.metadata_stream.unwrap().table;
+    let method_def_index = MethodDefIndex(row as _);
+    let entry_point = method_def_index.resolve_table(&metadata_table).unwrap();
+
+    dbg!(entry_point);
 }

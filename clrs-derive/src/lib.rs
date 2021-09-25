@@ -142,11 +142,9 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 }
             }
 
-            impl<'a> TableIndex<'a, #ty> for MetadataTable {
-                type IndexType = #index_ty_name;
-
-                fn get_table(&self, #index_ty_name(index): #index_ty_name) -> Option<&#ty> {
-                    self.#field.get(index as usize)
+            impl TableIndex<#ty> for #index_ty_name {
+                fn resolve_table(self, table: &MetadataTable) -> Option<&#ty> {
+                    table.#field.get(self.0 as usize)
                 }
             }
         }
@@ -181,10 +179,8 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }
 
-        pub trait TableIndex<'a, T> {
-            type IndexType;
-
-            fn get_table(&'a self, index: Self::IndexType) -> Option<&'a T>;
+        pub trait TableIndex<T> {
+            fn resolve_table(self, table: &MetadataTable) -> Option<&T>;
         }
 
         #(#impls)*
