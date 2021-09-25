@@ -18,13 +18,13 @@ pub struct CliHeader {
     pub strong_name_signature_hash: u32,
 }
 
-#[repr(C)]
 #[derive(Debug)]
 pub struct MetadataRoot<'a> {
     pub signature: u32,
     pub major_version: u16,
     pub minor_version: u16,
     pub version: &'a str,
+    pub heap: Heap<'a>,
     pub metadata_stream: Option<MetadataStream>,
 }
 
@@ -42,6 +42,7 @@ impl<'a> TryFromCtx<'a, Endian> for MetadataRoot<'a> {
         let _reserved: u16 = src.gread_with(offset, LE)?;
         let num_streams: u16 = src.gread_with(offset, LE)?;
 
+        let mut heap = Heap::default();
         let mut metadata_stream = None;
 
         for _ in 0..num_streams {
@@ -61,8 +62,17 @@ impl<'a> TryFromCtx<'a, Endian> for MetadataRoot<'a> {
                 "#~" => {
                     metadata_stream = Some(stream_src.pread(0)?);
                 }
-                "#Strings" => {}
-                "#Blob" => {}
+                "#Strings" => {
+                    heap.strings =
+                        std::str::from_utf8(stream_src).expect("#Strings is invalid UTF-8");
+                }
+                "#Blob" => {
+                    heap.blob = stream_src;
+                }
+                "#GUID" => {
+                    heap.guid = stream_src;
+                }
+                "#US" => {}
                 other => {
                     eprintln!("Unknown stream header: {}", other);
                 }
@@ -75,6 +85,7 @@ impl<'a> TryFromCtx<'a, Endian> for MetadataRoot<'a> {
                 major_version,
                 minor_version,
                 metadata_stream,
+                heap,
                 version,
             },
             *offset,
@@ -122,4 +133,11 @@ impl<'a> TryFromCtx<'a> for MetadataStream {
             *offset,
         ))
     }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Heap<'a> {
+    pub strings: &'a str,
+    pub blob: &'a [u8],
+    pub guid: &'a [u8],
 }

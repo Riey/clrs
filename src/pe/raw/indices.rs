@@ -1,3 +1,5 @@
+use crate::pe::Heap;
+
 use super::tables::*;
 use super::PeCtx;
 use scroll::{ctx::TryFromCtx, Pread};
@@ -95,6 +97,14 @@ make_single_index!(
     BlobIndex,
     GuidIndex,
 );
+
+impl StringIndex {
+    pub fn resolve<'a>(self, heap: Heap<'a>) -> &'a str {
+        let s = &heap.strings[self.0 as usize..];
+        let end = s.find('\0').unwrap();
+        &s[..end]
+    }
+}
 
 make_coded_index! {
     (TypeDefOrRef, 2, [
