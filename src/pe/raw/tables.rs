@@ -1,60 +1,9 @@
 use super::{indices::*, PeCtx};
 use bitflags::bitflags;
-use clrs_derive::{sort_lines, ClrPread};
+use clrs_derive::{make_table, ClrPread};
 use scroll::{ctx::TryFromCtx, Pread};
 
-macro_rules! make_table {
-    ($($field:ident: $table:ty => $index:expr,)+) => {
-        #[derive(Clone, Debug)]
-        pub struct MetadataTable {
-            $(
-                $field: Vec<$table>,
-            )+
-        }
-
-        impl<'a> TryFromCtx<'a, PeCtx> for MetadataTable {
-            type Error = scroll::Error;
-
-            fn try_from_ctx(src: &'a [u8], ctx: PeCtx) -> Result<(Self, usize), Self::Error> {
-                let offset = &mut 0;
-
-                let mut table_present_bitvec: u64 = src.gread_with(offset, ctx)?;
-                let _sorted_table_bitvec: u64 = src.gread_with(offset, ctx)?;
-
-                eprintln!("valid_bitvec: 0x{:08X}", table_present_bitvec);
-
-                $(
-                    let mut $field = (Vec::new(), 0);
-                )+
-
-                $(
-                    if table_present_bitvec & (1 << $index) != 0 {
-                        $field.1 = src.gread_with::<u32>(offset, ctx)?;
-                        table_present_bitvec &= (!(1 << $index));
-                    }
-                )+
-
-                assert_eq!(table_present_bitvec, 0, "Unknown table bitvec presents {:X}", table_present_bitvec);
-
-                $(
-                    for _ in 0..$field.1 {
-                        $field.0.push(src.gread_with(offset, ctx)?);
-                    }
-
-                    let $field = $field.0;
-                )+
-
-                Ok((Self {
-                    $($field,)+
-                }, *offset))
-            }
-        }
-    };
-}
-
-sort_lines! {
-    make_table
-
+make_table! {
     assembly: Assembly => 0x20,
     assembly_os: AssemblyOS => 0x22,
     assembly_processor: AssemblyProcessor => 0x21,
