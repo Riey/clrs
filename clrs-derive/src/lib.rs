@@ -144,7 +144,8 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
             impl TableIndex<#ty> for #index_ty_name {
                 fn resolve_table(self, table: &MetadataTable) -> Option<&#ty> {
-                    table.#field.get(self.0 as usize)
+                    // row index is one based zero means `NULL`
+                    table.#field.get((self.0 as usize).checked_sub(1)?)
                 }
             }
         }
