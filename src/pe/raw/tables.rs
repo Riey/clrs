@@ -1,6 +1,6 @@
 use super::{indices::*, PeCtx};
 use bitflags::bitflags;
-use clrs_derive::{ClrPread, sort_lines};
+use clrs_derive::{sort_lines, ClrPread};
 use scroll::{ctx::TryFromCtx, Pread};
 
 macro_rules! make_table {
@@ -21,7 +21,7 @@ macro_rules! make_table {
                 let mut table_present_bitvec: u64 = src.gread_with(offset, ctx)?;
                 let _sorted_table_bitvec: u64 = src.gread_with(offset, ctx)?;
 
-                eprintln!("{:X}", table_present_bitvec);
+                eprintln!("valid_bitvec: 0x{:08X}", table_present_bitvec);
 
                 $(
                     let mut $field = (Vec::new(), 0);
@@ -29,9 +29,8 @@ macro_rules! make_table {
 
                 $(
                     if table_present_bitvec & (1 << $index) != 0 {
-                        $field.1 = dbg!(src.gread_with::<u32>(offset, ctx)?);
+                        $field.1 = src.gread_with::<u32>(offset, ctx)?;
                         table_present_bitvec &= (!(1 << $index));
-                        eprintln!("{}: {}", stringify!($table), $field.1);
                     }
                 )+
 
@@ -40,7 +39,6 @@ macro_rules! make_table {
                 $(
                     for _ in 0..$field.1 {
                         $field.0.push(src.gread_with(offset, ctx)?);
-                        eprintln!("{:?}", $field.0.last().unwrap());
                     }
 
                     let $field = $field.0;
@@ -86,14 +84,14 @@ sort_lines! {
     method_semantics: MethodSemantics => 0x18,
     method_spec: MethodSpec => 0x2B,
     module: Module => 0x00,
-    type_ref: TypeRef => 0x01,
-    type_def: TypeDef => 0x02,
     module_ref: ModuleRef => 0x1A,
     nested_class: NestedClass => 0x29,
     param: Param => 0x08,
     property: Property => 0x17,
     property_map: PropertyMap => 0x15,
     stand_along_sig: StandAloneSig => 0x11,
+    type_def: TypeDef => 0x02,
+    type_ref: TypeRef => 0x01,
     type_spec: TypeSpec => 0x1B,
 }
 
@@ -620,7 +618,6 @@ pub struct Property {
     pub ty: BlobIndex,
 }
 
-
 #[repr(C)]
 #[derive(Debug, ClrPread, Clone, Copy)]
 pub struct PropertyMap {
@@ -642,6 +639,7 @@ pub struct TypeDef {
     pub type_namespace: StringIndex,
     pub extends: TypeDefOrRef,
     pub field_list: FieldIndex,
+    pub method_list: MethodDefIndex,
 }
 
 #[repr(C)]

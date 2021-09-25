@@ -63,10 +63,8 @@ impl<'a> TryFromCtx<'a, Endian> for MetadataRoot<'a> {
                 "#~" => {
                     metadata_stream = Some(stream_src.pread(0)?);
                 }
-                "#Strings" => {
-                }
-                "#Blob" => {
-                }
+                "#Strings" => {}
+                "#Blob" => {}
                 other => {
                     eprintln!("Unknown stream header: {}", other);
                 }
@@ -109,7 +107,8 @@ impl<'a> TryFromCtx<'a> for MetadataStream {
         let major_version = src.gread_with(offset, LE)?;
         let minor_version = src.gread_with(offset, LE)?;
 
-        let _heap_size: u8 = src.gread_with(offset, LE)?;
+        let heap_size: u8 = src.gread_with(offset, LE)?;
+        assert_eq!(heap_size, 0);
 
         let reserved: u8 = src.gread_with(offset, LE)?;
         debug_assert_eq!(reserved, 1);
