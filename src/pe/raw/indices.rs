@@ -3,7 +3,7 @@ use scroll::{ctx::TryFromCtx, Pread};
 
 // TODO: 32bit index
 macro_rules! make_single_index {
-    ($(($name:ident, $target:ident),)+) => {
+    ($(($name:ident, $target:ty),)+) => {
         $(
             #[derive(Debug, Clone, Copy)]
             pub struct $name(pub u16);
@@ -20,116 +20,82 @@ macro_rules! make_single_index {
     };
 }
 
-macro_rules! make_tag_index {
+const fn get_tag_mask(tag_size: u16) -> u16 {
+    (1 << tag_size) - 1
+}
+
+macro_rules! make_coded_index {
     (($name:ident, $tag_size:expr, [$($ty:ident,)+]), $($t:tt)*) => {
-        #[derive(Debug, Clone, Copy)]
-        pub struct $name(pub u16);
+        #[derive(Clone, Copy)]
+        pub enum $name {
+            $(
+                $ty($ty),
+            )+
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                match self {
+                    $(
+                        Self::$ty($ty(index)) => {
+                            write!(f, "{}({}, {})", stringify!($name), stringify!($ty), index)
+                        }
+                    )+
+                }
+            }
+        }
+
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                match self {
+                    $(
+                        Self::$ty($ty(index)) => {
+                            write!(f, "{}({}, {})", stringify!($name), stringify!($ty), index)
+                        }
+                    )+
+                }
+            }
+        }
 
         impl<'a> TryFromCtx<'a, PeCtx> for $name {
             type Error = scroll::Error;
 
             fn try_from_ctx(src: &'a [u8], ctx: PeCtx) -> Result<(Self, usize), Self::Error> {
                 let n: u16 = src.pread_with(0, ctx)?;
-                Ok((Self(n), 2))
+
+                const TAG_MASK: u16 = get_tag_mask($tag_size);
+
+                let mut tag = n & TAG_MASK;
+                let real = n >> $tag_size;
+
+                dbg!((tag, real));
+
+                $(
+                    if let Some(new_tag) = tag.checked_sub(1) {
+                        tag = new_tag;
+                    } else {
+                        return Ok((Self::$ty($ty(real)), 2));
+                    }
+                )+
+                
+                panic!("Invalid tag: {}", tag)
             }
         }
 
-        make_tag_index!($($t)*);
+        make_coded_index!($($t)*);
     };
     () => {};
 }
 
-make_tag_index! {
-    (TypeDefOrRef, 2, [
-        TypeDef,
-        TypeRef,
-        TypeSpec,
-    ]),
-    (HasConstant, 2, [
-        Field,
-        Param,
-        Property,
-    ]),
-    (HasCustomAttribute, 5, [
-        MethodDef,
-        Field,
-        TypeRef,
-        TypeDef,
-        Param,
-        InterfaceImpl,
-        MemberRef,
-        Module,
-        Permission,
-        Property,
-        Event,
-        StandAloneSig,
-        ModuleRef,
-        TypeSpec,
-        Assembly,
-        AssemblyRef,
-        File,
-        ExportedType,
-        ManifestResource,
-        GenericParam,
-        GenericParamConstraint,
-        MethodSpec,
-    ]),
-    (HasFieldMarshal, 1, [
-        Field,
-        Param,
-    ]),
-    (HasDeclSecurity, 2, [
-        TypeDef,
-        MethodDef,
-        Assembly,
-    ]),
-    (MemberRefParent, 3, [
-        TypeDef,
-        TypeRef,
-        ModuleRef,
-        MethodDef,
-        TypeSpec,
-    ]),
-    (HasSemantics, 1, [
-        Event,
-        Property,
-    ]),
-    (MethodDefOrRef, 1, [
-        MethodDef,
-        MethodRef,
-    ]),
-    (MemberForwarded, 1, [
-        Field,
-        MethodDef,
-    ]),
-    (Implementation, 2, [
-        File,
-        AssemblyRef,
-        ExportedType,
-    ]),
-    (CustomAttributeType, 3, [
-        NotUsed,
-        NotUsed,
-        MethodDef,
-        MemberRef,
-        NotUsed,
-    ]),
-    (ResolutionScope, 2, [
-        Module,
-        ModuleRef,
-        AssemblyRef,
-        TypeRef,
-    ]),
-    (TypeOrMethodDef, 1, [
-        TypeDef,
-        MethodDef,
-    ]),
-}
-
 make_single_index! {
+    (NotUsed0Index, ()),
+    (NotUsed1Index, ()),
+    (NotUsed2Index, ()),
+
     (BlobIndex, Blob),
     (StringIndex, String),
     (GuidIndex, Guid),
+    (AssemblyIndex, Assembly),
     (AssemblyRefIndex, AssemblyRef),
     (TypeDefIndex, TypeDef),
     (TypeRefIndex, TypeRef),
@@ -152,4 +118,91 @@ make_single_index! {
     (GenericParamIndex, GenericParam),
     (GenericParamConstraintIndex, GenericParamConstraint),
     (MethodSpecIndex, MethodSpec),
+}
+
+make_coded_index! {
+    (TypeDefOrRef, 2, [
+        TypeDefIndex,
+        TypeRefIndex,
+        TypeSpecIndex,
+    ]),
+    (HasConstant, 2, [
+        FieldIndex,
+        ParamIndex,
+        PropertyIndex,
+    ]),
+    (HasCustomAttribute, 5, [
+        MethodDefIndex,
+        FieldIndex,
+        TypeRefIndex,
+        TypeDefIndex,
+        ParamIndex,
+        InterfaceImplIndex,
+        MemberRefIndex,
+        ModuleIndex,
+        PermissionIndex,
+        PropertyIndex,
+        EventIndex,
+        StandAloneSigIndex,
+        ModuleRefIndex,
+        TypeSpecIndex,
+        AssemblyIndex,
+        AssemblyRefIndex,
+        FileIndex,
+        ExportedTypeIndex,
+        ManifestResourceIndex,
+        GenericParamIndex,
+        GenericParamConstraintIndex,
+        MethodSpecIndex,
+    ]),
+    (HasFieldMarshal, 1, [
+        FieldIndex,
+        ParamIndex,
+    ]),
+    (HasDeclSecurity, 2, [
+        TypeDefIndex,
+        MethodDefIndex,
+        AssemblyIndex,
+    ]),
+    (MemberRefParent, 3, [
+        TypeDefIndex,
+        TypeRefIndex,
+        ModuleRefIndex,
+        MethodDefIndex,
+        TypeSpecIndex,
+    ]),
+    (HasSemantics, 1, [
+        EventIndex,
+        PropertyIndex,
+    ]),
+    (MethodDefOrRef, 1, [
+        MethodDefIndex,
+        MethodRefIndex,
+    ]),
+    (MemberForwarded, 1, [
+        FieldIndex,
+        MethodDefIndex,
+    ]),
+    (Implementation, 2, [
+        FileIndex,
+        AssemblyRefIndex,
+        ExportedTypeIndex,
+    ]),
+    (CustomAttributeType, 3, [
+        NotUsed0Index,
+        NotUsed1Index,
+        MethodDefIndex,
+        MemberRefIndex,
+        NotUsed2Index,
+    ]),
+    (ResolutionScope, 2, [
+        ModuleIndex,
+        ModuleRefIndex,
+        AssemblyRefIndex,
+        TypeRefIndex,
+    ]),
+    (TypeOrMethodDef, 1, [
+        TypeDefIndex,
+        MethodDefIndex,
+    ]),
 }
