@@ -9,14 +9,14 @@ macro_rules! make_single_index {
     ($($name:ident,)+) => {
         $(
             #[derive(Debug, Clone, Copy)]
-            pub struct $name(pub u16);
+            pub struct $name(pub u32);
 
             impl<'a> TryFromCtx<'a, PeCtx> for $name {
                 type Error = scroll::Error;
 
                 fn try_from_ctx(src: &'a [u8], ctx: PeCtx) -> Result<(Self, usize), Self::Error> {
                     let n: u16 = src.pread_with(0, ctx)?;
-                    Ok((Self(n), 2))
+                    Ok((Self(n as u32), 2))
                 }
             }
         )+
@@ -76,7 +76,7 @@ macro_rules! make_coded_index {
                     if let Some(new_tag) = tag.checked_sub(1) {
                         tag = new_tag;
                     } else {
-                        return Ok((Self::$ty($ty(real)), 2));
+                        return Ok((Self::$ty($ty(real as u32)), 2));
                     }
                 )+
 

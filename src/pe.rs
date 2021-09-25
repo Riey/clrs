@@ -100,6 +100,7 @@ pub struct MetadataStream {
     pub major_version: u8,
     pub minor_version: u8,
     pub table: raw::MetadataTable,
+    pub ctx: raw::PeCtx,
 }
 
 impl<'a> TryFromCtx<'a> for MetadataStream {
@@ -129,6 +130,7 @@ impl<'a> TryFromCtx<'a> for MetadataStream {
                 major_version,
                 minor_version,
                 table,
+                ctx,
             },
             *offset,
         ))
