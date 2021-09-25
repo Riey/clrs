@@ -57,7 +57,7 @@ struct MakeTableInput {
         (
             syn::Ident,
             syn::Token![:],
-            syn::Type,
+            syn::Ident,
             syn::Token![=>],
             syn::LitInt,
         ),
@@ -126,6 +126,32 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     });
 
+    let impls = lines.iter().map(|(field, _, ty, ..)| {
+        let index_ty_name = syn::Ident::new(&format!("{}Index", ty), ty.span());
+
+        quote! {
+            #[derive(Copy, Clone, Debug)]
+            pub struct #index_ty_name(pub u16);
+
+            impl<'a> TryFromCtx<'a, PeCtx> for #index_ty_name {
+                type Error = scroll::Error;
+
+                fn try_from_ctx(src: &'a [u8], ctx: PeCtx) -> Result<(Self, usize), Self::Error> {
+                    let n: u16 = src.pread_with(0, ctx)?;
+                    Ok((Self(n), 2))
+                }
+            }
+
+            impl<'a> TableIndex<'a, #ty> for MetadataTable {
+                type IndexType = #index_ty_name;
+
+                fn get_table(&self, #index_ty_name(index): #index_ty_name) -> Option<&#ty> {
+                    self.#field.get(index as usize)
+                }
+            }
+        }
+    });
+
     (quote! {
         #[derive(Clone, Debug)]
         pub struct MetadataTable {
@@ -154,6 +180,14 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 }, *offset))
             }
         }
+
+        pub trait TableIndex<'a, T> {
+            type IndexType;
+
+            fn get_table(&'a self, index: Self::IndexType) -> Option<&'a T>;
+        }
+
+        #(#impls)*
     })
     .into()
 }

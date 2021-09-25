@@ -3,7 +3,7 @@ use goblin::pe::data_directories::DataDirectory;
 use scroll::ctx::{StrCtx, TryFromCtx};
 use scroll::{Pread, LE};
 
-mod raw;
+pub mod raw;
 
 #[repr(C)]
 #[derive(Debug, Pread)]

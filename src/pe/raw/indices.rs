@@ -1,9 +1,10 @@
+use super::tables::*;
 use super::PeCtx;
 use scroll::{ctx::TryFromCtx, Pread};
 
 // TODO: 32bit index
 macro_rules! make_single_index {
-    ($(($name:ident, $target:ty),)+) => {
+    ($($name:ident,)+) => {
         $(
             #[derive(Debug, Clone, Copy)]
             pub struct $name(pub u16);
@@ -86,38 +87,14 @@ macro_rules! make_coded_index {
     () => {};
 }
 
-make_single_index! {
-    (NotUsed0Index, ()),
-    (NotUsed1Index, ()),
-    (NotUsed2Index, ()),
-
-    (BlobIndex, Blob),
-    (StringIndex, String),
-    (GuidIndex, Guid),
-    (AssemblyIndex, Assembly),
-    (AssemblyRefIndex, AssemblyRef),
-    (TypeDefIndex, TypeDef),
-    (TypeRefIndex, TypeRef),
-    (TypeSpecIndex, TypeSpec),
-    (ExportedTypeIndex, ExportedType),
-    (FieldIndex, Field),
-    (ParamIndex, Param),
-    (PropertyIndex, Property),
-    (MethodDefIndex, MethodDef),
-    (MethodRefIndex, MethodRef),
-    (InterfaceImplIndex, InterfaceImpl),
-    (MemberRefIndex, MemberRef),
-    (ModuleIndex, Module),
-    (ModuleRefIndex, ModuleRef),
-    (PermissionIndex, Permission),
-    (EventIndex, Event),
-    (StandAloneSigIndex, StandAloneSig),
-    (FileIndex, File),
-    (ManifestResourceIndex, ManifestResource),
-    (GenericParamIndex, GenericParam),
-    (GenericParamConstraintIndex, GenericParamConstraint),
-    (MethodSpecIndex, MethodSpec),
-}
+make_single_index!(
+    NotUsed1Index,
+    NotUsed2Index,
+    NotUsed3Index,
+    StringIndex,
+    BlobIndex,
+    GuidIndex,
+);
 
 make_coded_index! {
     (TypeDefOrRef, 2, [
@@ -139,7 +116,8 @@ make_coded_index! {
         InterfaceImplIndex,
         MemberRefIndex,
         ModuleIndex,
-        PermissionIndex,
+        // Permission
+        BlobIndex,
         PropertyIndex,
         EventIndex,
         StandAloneSigIndex,
@@ -176,7 +154,7 @@ make_coded_index! {
     ]),
     (MethodDefOrRef, 1, [
         MethodDefIndex,
-        MethodRefIndex,
+        MemberRefIndex,
     ]),
     (MemberForwarded, 1, [
         FieldIndex,
@@ -188,11 +166,11 @@ make_coded_index! {
         ExportedTypeIndex,
     ]),
     (CustomAttributeType, 3, [
-        NotUsed0Index,
         NotUsed1Index,
+        NotUsed2Index,
         MethodDefIndex,
         MemberRefIndex,
-        NotUsed2Index,
+        NotUsed3Index,
     ]),
     (ResolutionScope, 2, [
         ModuleIndex,
