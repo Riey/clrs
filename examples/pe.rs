@@ -1,7 +1,11 @@
-use goblin::pe::utils::get_data;
+use clrs::cil::{Instruction, MethodBody};
+use goblin::pe::options::ParseOptions;
+use goblin::pe::utils::find_offset;
 use goblin::pe::PE;
+use goblin::pe::{data_directories::DataDirectory, utils::get_data};
 
 use clrs::pe::{raw::*, CliHeader, MetadataRoot};
+use scroll::Pread;
 
 fn main() {
     let file = include_bytes!("../assets/HelloWorld.dll");
@@ -29,8 +33,6 @@ fn main() {
     assert_eq!(metadata_root.major_version, 1);
     assert_eq!(metadata_root.minor_version, 1);
 
-    println!("{:b}", cli_header_value.entry_point_token);
-
     let ty = (cli_header_value.entry_point_token & 0xFF000000) >> 24;
     let row = cli_header_value.entry_point_token & 0x00FFFFFF;
 
@@ -43,7 +45,16 @@ fn main() {
 
     dbg!(entry_point);
 
-    let name = entry_point.name.resolve(heap);
+    let body: MethodBody = get_data(
+        file,
+        sections,
+        DataDirectory {
+            virtual_address: entry_point.rva,
+            size: 0,
+        },
+        file_alignment,
+    )
+    .unwrap();
 
-    dbg!(name);
+    println!("EntryPoint({}): {:?}", entry_point.name.resolve(heap), body);
 }
