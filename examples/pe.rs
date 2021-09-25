@@ -1,11 +1,8 @@
-use clrs::cil::{Instruction, MethodBody};
-use goblin::pe::options::ParseOptions;
-use goblin::pe::utils::find_offset;
 use goblin::pe::PE;
 use goblin::pe::{data_directories::DataDirectory, utils::get_data};
 
+use clrs::cil::MethodBody;
 use clrs::pe::{raw::*, CliHeader, MetadataRoot};
-use scroll::Pread;
 
 fn main() {
     let file = include_bytes!("../assets/HelloWorld.dll");
@@ -33,28 +30,28 @@ fn main() {
     assert_eq!(metadata_root.major_version, 1);
     assert_eq!(metadata_root.minor_version, 1);
 
-    let ty = (cli_header_value.entry_point_token & 0xFF000000) >> 24;
-    let row = cli_header_value.entry_point_token & 0x00FFFFFF;
-
-    assert_eq!(ty, 6, "EntryPoint is not Method");
-
     let heap = metadata_root.heap;
     let metadata_stream = metadata_root.metadata_stream.unwrap();
     let metadata_table = metadata_stream.table;
-    let method_def_index = MethodDefIndex(row as _);
-    let entry_point = method_def_index.resolve_table(&metadata_table).unwrap();
+    let entry_point = cli_header_value
+        .entry_point_token
+        .as_method_def()
+        .expect("EntryPoint is not Method")
+        .resolve_table(&metadata_table)
+        .expect("Entry method not found");
 
     dbg!(entry_point);
 
-    let offset = find_offset(
-        entry_point.rva as usize,
+    let body: MethodBody = get_data(
+        file,
         sections,
+        DataDirectory {
+            virtual_address: entry_point.rva,
+            size: 0,
+        },
         file_alignment,
-        &ParseOptions::default(),
     )
     .unwrap();
-
-    let body: MethodBody = file.pread_with(offset, scroll::LE).unwrap();
 
     println!("EntryPoint({}): {:?}", entry_point.name.resolve(heap), body);
 }

@@ -1,7 +1,7 @@
 extern crate proc_macro;
 
 use quote::quote;
-use syn::{parse_macro_input, punctuated::Punctuated};
+use syn::{braced, parse_macro_input, punctuated::Punctuated};
 
 fn impl_struct(
     name: &syn::Ident,
@@ -63,11 +63,28 @@ struct MakeTableInput {
         ),
         syn::token::Comma,
     >,
+
+    add_tokens: Punctuated<
+        (
+            syn::Ident,
+            syn::Token![:],
+            syn::Ident,
+            syn::Token![=>],
+            syn::LitInt,
+        ),
+        syn::token::Comma,
+    >,
 }
 
 impl syn::parse::Parse for MakeTableInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let lines = input.parse_terminated(|input| {
+        let lines_content;
+        let add_content;
+
+        braced!(lines_content in input);
+        braced!(add_content in input);
+
+        let lines = lines_content.parse_terminated(|input| {
             Ok((
                 input.parse()?,
                 input.parse()?,
@@ -77,7 +94,17 @@ impl syn::parse::Parse for MakeTableInput {
             ))
         })?;
 
-        Ok(Self { lines })
+        let add_tokens = add_content.parse_terminated(|input| {
+            Ok((
+                input.parse()?,
+                input.parse()?,
+                input.parse()?,
+                input.parse()?,
+                input.parse()?,
+            ))
+        })?;
+
+        Ok(Self { lines, add_tokens })
     }
 }
 
@@ -88,6 +115,8 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut lines = input.lines.into_iter().collect::<Vec<_>>();
 
     lines.sort_by_key(|a| a.4.base10_parse::<u64>().unwrap());
+
+    let add_tokens = input.add_tokens;
 
     let fields = lines.iter().map(|(field, _, ty, ..)| {
         quote! {
@@ -157,19 +186,68 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     });
 
-    let token_variants = lines.iter().map(|(_, _, ty, _, _)| {
-        let index_ty_name = syn::Ident::new(&format!("{}Index", ty), ty.span());
-
+    let add_token_variants = add_tokens.iter().map(|(name, _, ty, ..)| {
         quote! {
-            #ty(#index_ty_name),
+            #name(#ty),
         }
     });
 
-    let token_arms = lines.iter().map(|(_, _, ty, _, expr)| {
+    let token_variants = lines
+        .iter()
+        .map(|(_, _, ty, _, _)| {
+            let index_ty_name = syn::Ident::new(&format!("{}Index", ty), ty.span());
+
+            quote! {
+                #ty(#index_ty_name),
+            }
+        })
+        .chain(add_token_variants);
+
+    let add_token_arms = add_tokens.iter().map(|(name, _, _, _, expr)| {
         quote! {
-            x if x == #expr << 24 => Ok((Self::#ty(rid.into()), 4)),
+            x if x == #expr << 24 => Ok((Self::#name(rid.into()), 4)),
         }
     });
+
+    let token_arms = lines
+        .iter()
+        .map(|(_, _, ty, _, expr)| {
+            quote! {
+                x if x == #expr << 24 => Ok((Self::#ty(rid.into()), 4)),
+            }
+        })
+        .chain(add_token_arms);
+
+    let add_token_methods = add_tokens.iter().map(|(name, _, ty, ..)| {
+        let ty_name = name.to_string().to_ascii_lowercase();
+        let fn_name = syn::Ident::new(&format!("as_{}", ty_name), name.span());
+
+        quote! {
+            pub fn #fn_name(self) -> Option<#ty> {
+                match self {
+                    Self::#name(index) => Some(index),
+                    _ => None,
+                }
+            }
+        }
+    });
+
+    let token_methods = lines
+        .iter()
+        .map(|(field, _, ty, ..)| {
+            let index_ty_name = syn::Ident::new(&format!("{}Index", ty), ty.span());
+            let index_fn_name = syn::Ident::new(&format!("as_{}", field), field.span());
+
+            quote! {
+                pub fn #index_fn_name(self) -> Option<#index_ty_name> {
+                    match self {
+                        Self::#ty(index) => Some(index),
+                        _ => None,
+                    }
+                }
+            }
+        })
+        .chain(add_token_methods);
 
     (quote! {
         #[derive(Clone, Debug)]
@@ -203,16 +281,10 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         #[derive(Clone, Copy, Debug)]
         pub enum MetadataToken {
             #(#token_variants)*
-            Document(u32),
-            MethodDebugInformation(u32),
-            LocalScope(u32),
-            LocalVariable(u32),
-            LocalConstant(u32),
-            ImportScope(u32),
-            StateMachineMethod(u32),
-            CustomDebugInformation(u32),
+        }
 
-            String(StringIndex),
+        impl MetadataToken {
+            #(#token_methods)*
         }
 
         impl<'a> TryFromCtx<'a, ::scroll::Endian> for MetadataToken {
@@ -226,16 +298,6 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
                 match ty {
                     #(#token_arms)*
-                    0x30000000 => Ok((Self::Document(rid), 4)),
-                    0x31000000 => Ok((Self::MethodDebugInformation(rid), 4)),
-                    0x32000000 => Ok((Self::LocalScope(rid), 4)),
-                    0x33000000 => Ok((Self::LocalVariable(rid), 4)),
-                    0x34000000 => Ok((Self::LocalConstant(rid), 4)),
-                    0x35000000 => Ok((Self::ImportScope(rid), 4)),
-                    0x36000000 => Ok((Self::StateMachineMethod(rid), 4)),
-                    0x37000000 => Ok((Self::CustomDebugInformation(rid), 4)),
-
-                    0x70000000 => Ok((Self::String(StringIndex(rid)), 4)),
                     _ => Err(::scroll::Error::BadInput { size: 4, msg: "Bad TokenType" }),
                 }
             }

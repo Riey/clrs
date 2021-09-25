@@ -13,7 +13,7 @@ pub struct CliHeader {
     pub minor_version: u16,
     pub metadata: DataDirectory,
     pub flags: u32,
-    pub entry_point_token: u32,
+    pub entry_point_token: raw::MetadataToken,
     _empty: u64,
     pub strong_name_signature_hash: u32,
 }

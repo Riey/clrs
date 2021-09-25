@@ -11,6 +11,12 @@ macro_rules! make_single_index {
             #[derive(Debug, Clone, Copy)]
             pub struct $name(pub u32);
 
+            impl From<u32> for $name {
+                fn from(n: u32) -> Self {
+                    Self(n)
+                }
+            }
+
             impl<'a> TryFromCtx<'a, PeCtx> for $name {
                 type Error = scroll::Error;
 
