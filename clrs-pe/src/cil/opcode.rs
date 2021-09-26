@@ -1,4 +1,4 @@
-use crate::pe::raw::*;
+use crate::pe::MetadataToken;
 use scroll::{ctx::TryFromCtx, Endian, Pread};
 
 #[derive(Clone, Copy, Debug)]

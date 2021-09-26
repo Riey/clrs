@@ -58,6 +58,18 @@ make_table! {
     }
 }
 
+impl MethodDefIndex {
+    pub fn resolve_params(self, table: &MetadataTable) -> Option<&[Param]> {
+        let method = self.resolve_table(table)?;
+        let next_index = Self(self.0 + 1);
+
+        let start = method.param_list.0 as usize - 1;
+        let end = next_index.resolve_table(table).map(|m| m.param_list.0 as usize - 1).unwrap_or(table.param.len());
+
+        Some(&table.param[start..end])
+    }
+}
+
 macro_rules! num_tryctx {
     ($($num:ty)+) => {
         $(
@@ -206,11 +218,18 @@ bitflags_tryctx! {
     }
 
     pub struct ParamAttributes: u16 {
-        // TODO
+        const IN = 0x0001;
+        const OUT = 0x0002;
+        const HAS_DEFAULT = 0x1000;
+        const HAS_FIELD_MARSHAL = 0x2000;
+        const UNUSED = 0xCFE0;
     }
 
     pub struct PropertyAttributes: u16 {
-        // TODO
+        const SPECIAL_NAME = 0x0200;
+        const RT_SPECIAL_NAME = 0x0400;
+        const HAS_DEFAULT = 0x1000;
+        const UNUSED = 0xE9FF;
     }
 
     pub struct TypeAttributes: u32 {

@@ -1,8 +1,8 @@
 use goblin::pe::PE;
 use goblin::pe::{data_directories::DataDirectory, utils::get_data};
 
-use clrs::cil::MethodBody;
-use clrs::pe::{raw::*, CliHeader, MetadataRoot};
+use clrs_pe::cil::MethodBody;
+use clrs_pe::pe::{CliHeader, MetadataRoot, TableIndex};
 
 fn main() {
     let file = include_bytes!("../assets/HelloWorld.dll");
@@ -31,16 +31,21 @@ fn main() {
     assert_eq!(metadata_root.minor_version, 1);
 
     let heap = metadata_root.heap;
-    let metadata_stream = metadata_root.metadata_stream.unwrap();
+    let metadata_stream = metadata_root.metadata_stream;
     let metadata_table = metadata_stream.table;
-    let entry_point = cli_header_value
+    let entry_point_index = cli_header_value
         .entry_point_token
         .as_method_def()
-        .expect("EntryPoint is not Method")
+        .expect("EntryPoint is not Method");
+    let entry_point = entry_point_index
         .resolve_table(&metadata_table)
         .expect("Entry method not found");
 
+    let entry_point_params = entry_point_index.resolve_params(&metadata_table).unwrap();
+
     dbg!(entry_point);
+    dbg!(entry_point_params);
+    dbg!(entry_point_params[0].name.resolve(heap));
 
     let body: MethodBody = get_data(
         file,

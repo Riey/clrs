@@ -3,7 +3,9 @@ use goblin::pe::data_directories::DataDirectory;
 use scroll::ctx::{StrCtx, TryFromCtx};
 use scroll::{Pread, LE};
 
-pub mod raw;
+mod raw;
+
+pub use self::raw::*;
 
 #[repr(C)]
 #[derive(Debug, Pread)]
@@ -13,7 +15,7 @@ pub struct CliHeader {
     pub minor_version: u16,
     pub metadata: DataDirectory,
     pub flags: u32,
-    pub entry_point_token: raw::MetadataToken,
+    pub entry_point_token: MetadataToken,
     _empty: u64,
     pub strong_name_signature_hash: u32,
 }
@@ -25,7 +27,7 @@ pub struct MetadataRoot<'a> {
     pub minor_version: u16,
     pub version: &'a str,
     pub heap: Heap<'a>,
-    pub metadata_stream: Option<MetadataStream>,
+    pub metadata_stream: MetadataStream,
 }
 
 impl<'a> TryFromCtx<'a, Endian> for MetadataRoot<'a> {
@@ -84,7 +86,7 @@ impl<'a> TryFromCtx<'a, Endian> for MetadataRoot<'a> {
                 signature,
                 major_version,
                 minor_version,
-                metadata_stream,
+                metadata_stream: metadata_stream.unwrap(),
                 heap,
                 version,
             },
@@ -99,8 +101,8 @@ impl<'a> TryFromCtx<'a, Endian> for MetadataRoot<'a> {
 pub struct MetadataStream {
     pub major_version: u8,
     pub minor_version: u8,
-    pub table: raw::MetadataTable,
-    pub ctx: raw::PeCtx,
+    pub table: MetadataTable,
+    pub ctx: PeCtx,
 }
 
 impl<'a> TryFromCtx<'a> for MetadataStream {
