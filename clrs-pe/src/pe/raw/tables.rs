@@ -64,7 +64,10 @@ impl MethodDefIndex {
         let next_index = Self(self.0 + 1);
 
         let start = method.param_list.0 as usize - 1;
-        let end = next_index.resolve_table(table).map(|m| m.param_list.0 as usize - 1).unwrap_or(table.param.len());
+        let end = next_index
+            .resolve_table(table)
+            .map(|m| m.param_list.0 as usize - 1)
+            .unwrap_or(table.param.len());
 
         Some(&table.param[start..end])
     }
