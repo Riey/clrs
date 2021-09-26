@@ -120,7 +120,7 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let fields = lines.iter().map(|(field, _, ty, ..)| {
         quote! {
-            #field: Vec<#ty>,
+            pub #field: Vec<#ty>,
         }
     });
 

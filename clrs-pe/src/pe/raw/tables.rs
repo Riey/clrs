@@ -144,6 +144,17 @@ macro_rules! enum_tryctx {
             )+
         }
 
+        impl $name {
+            pub fn from_n(n: $inner) -> Option<Self> {
+                match n {
+                    $(
+                        $value => Some(Self::$variant),
+                    )+
+                    _ => None,
+                }
+            }
+        }
+
         impl<'a, C: Copy> TryFromCtx<'a, C> for $name where $inner: TryFromCtx<'a, C, Error = scroll::Error> {
             type Error = scroll::Error;
 

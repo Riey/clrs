@@ -1,5 +1,6 @@
 mod indices;
 mod tables;
+mod signatures;
 
 pub use self::indices::*;
 pub use self::tables::*;

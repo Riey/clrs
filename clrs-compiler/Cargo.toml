@@ -7,4 +7,6 @@ edition = "2018"
 
 [dependencies]
 clrs-pe = { path = "../clrs-pe" }
+goblin = "0.4.3"
+scroll = "0.10.2"
 wasm-encoder = "0.6.0"

@@ -42,6 +42,9 @@ fn main() {
         .expect("Entry method not found");
 
     let entry_point_params = entry_point_index.resolve_params(&metadata_table).unwrap();
+    let entry_point_signature = entry_point.signature;
+    dbg!(entry_point_signature.0);
+    dbg!(&heap.blob[entry_point_signature.0 as usize..entry_point_signature.0 as usize + 50]);
 
     dbg!(entry_point);
     dbg!(entry_point_params);
