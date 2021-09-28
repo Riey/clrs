@@ -87,38 +87,123 @@ bitflags_tryctx! {
         const RT_SPECIAL_NAME = 0x0400;
     }
 
+    // II.23.1.5
     pub struct FieldAttributes: u16 {
         const FIELD_ACCESS_MASK = 0x0007;
         const COMPILER_CONTROLLED = 0x0000;
-        // TODO
+        const PRIVATE = 0x0001;
+        const FAM_AND_ASSEM = 0x0002;
+        const ASSEMBLY = 0x0003;
+        const FAMILY = 0x0004;
+        const FAM_OR_ASSEM = 0x0005;
+        const PUBLIC = 0x0006;
+
+        const STATIC = 0x0010;
+        const INIT_ONLY = 0x0020;
+        const LITERAL = 0x0040;
+        const NOT_SERIALIZED = 0x0080;
+        const SPECIAL_NAME = 0x0200;
+
+        const PINVOKE_IMPL = 0x2000;
+
+        const RT_SPECIAL_NAME = 0x0400;
+        const HAS_FIELD_MARSHAL = 0x1000;
+        const HAS_DEFAULT = 0x8000;
+        const HAS_FIELD_RVA = 0x0100;
     }
 
     pub struct FileAttributes: u32 {
-        // TODO
+        const CONTAINS_METADATA = 0x0000;
+        const CONTAINS_NO_METADATA = 0x0001;
     }
 
     pub struct GenericParamAttributes: u16 {
-        // TODO
+        const VARIANCE_MASK = 0x0003;
+        const NONE = 0x0000;
+        const COVARIANT = 0x0001;
+        const CONTRAVARIANT = 0x0002;
+        const SPECIAL_CONSTRAINT_MASK = 0x001C;
+        const REFERENCE_TYPE_CONSTRAINT = 0x0004;
+        const NOT_NULLABLE_VALUE_TYPE_CONSTRAINT = 0x0008;
+        const DEFAULT_CONSTRUCTOR_CONSTRAINT = 0x0010;
     }
 
     pub struct PInvokeAttributes: u16 {
-        // TODO
+        const NO_MANGLE = 0x0001;
+        const CHARSET_MASK = 0x0006;
+        const CHARSET_NOT_SPEC = 0x0000;
+        const CHARSET_ANSI = 0x0002;
+        const CHARSET_UNICODE = 0x0004;
+        const CHARSET_AUTO = 0x0006;
+
+        const SUPPORTS_LAST_ERROR = 0x0040;
+
+        const CALL_CONV_MASK = 0x0700;
+        const CALL_CONV_PLATFORMAPI = 0x0100;
+        const CALL_CONV_CDECL = 0x0200;
+        const CALL_CONV_STDCALL = 0x0300;
+        const CALL_CONV_THISCALL = 0x0400;
+        const CALL_CONV_FASTCALL = 0x0500;
     }
 
     pub struct ManifestResourceAttributes: u32 {
-        // TODO
+        const VISIBILITY_MASK = 0x0007;
+        const PUBLIC = 0x0001;
+        const PRIVATE = 0x0002;
     }
 
     pub struct MethodAttributes: u16 {
-        // TODO
+        const MEMBER_ACCESS_MASK = 0x0007;
+        const COMPILER_CONTROLLED = 0x0000;
+        const PRIVATE = 0x0001;
+        const FAM_AND_ASSEM = 0x0002;
+        const ASSEMBLY = 0x0003;
+        const FAMILY = 0x0004;
+        const FAM_OR_ASSEM = 0x0005;
+        const PUBLIC = 0x0006;
+
+        const STATIC = 0x0010;
+        const FINAL = 0x0020;
+        const VIRTUAL = 0x0040;
+        const HIDE_BY_SIG = 0x0080;
+        const VTABLE_LAYOUT_MASK = 0x0100;
+
+        const REUSE_SLOT = 0x0000;
+        const NEW_SLOT = 0x0100;
+        const STRICT = 0x0200;
+        const ABSTRACT = 0x0400;
+        const SPECIAL_NAME = 0x0800;
+
+        const PINVOKE_IMPL = 0x2000;
+        const UNMANAGED_EXPORT = 0x0008;
     }
 
     pub struct MethodImplAttributes: u16 {
-        // TODO
+        const CODE_TYPE_MASK = 0x0003;
+        const IL = 0x0000;
+        const NATIVE = 0x0001;
+        const OPTIL = 0x0002;
+        const RUNTIME = 0x0003;
+        const MANAGED_MASK = 0x0004;
+        const UNMANAGED = 0x0004;
+        const MANAGED = 0x0000;
+
+        const FORWARD_REF = 0x0010;
+        const PRESERVE_SIG = 0x0080;
+        const INTERNAL_CALL = 0x1000;
+        const SYNCHRONIZED = 0x0020;
+        const NO_INLINING = 0x0008;
+        const MAX_METHOD_IMPL_VAL = 0xFFFF;
+        const NO_OPTIMIZATION = 0x0040;
     }
 
     pub struct MethodSemanticsAttributes: u16 {
-        // TODO
+        const SETTER = 0x0001;
+        const GETTER = 0x0002;
+        const OTHER = 0x0004;
+        const ADD_ON = 0x0008;
+        const REMOVE_ON = 0x0010;
+        const FIRE = 0x0020;
     }
 
     pub struct ParamAttributes: u16 {
@@ -137,7 +222,43 @@ bitflags_tryctx! {
     }
 
     pub struct TypeAttributes: u32 {
-        // TODO
+        const VISIBILITY_MASK = 0x0000_0007;
+        const NOT_PUBLIC = 0x0000_0000;
+        const PUBLIC = 0x0000_0001;
+        const NESTED_PUBLIC = 0x0000_0002;
+        const NESTED_PRIVATE = 0x0000_0003;
+        const NESTED_FAMILY = 0x0000_0004;
+        const NESTED_ASSEMBLY = 0x0000_0005;
+        const NESTED_FAM_AND_ASSEM = 0x0000_0006;
+        const NESTED_FAM_OR_ASSEM = 0x0000_0007;
+
+        const LAYOUT_MASK = 0x0000_0018;
+        const AUTO_LAYOUT = 0x0000_0000;
+        const SEQUENTIAL_LAYOUT = 0x0000_0008;
+        const EXPLICIT_LAYOUT = 0x0000_0010;
+
+        const CLASS_SEMANTIC_MASK = 0x0000_0020;
+        const CLASS = 0x0000_0000;
+        const INTERFACE = 0x0000_0020;
+
+        const ABSTRACT = 0x0000_0080;
+        const SEALED = 0x0000_0100;
+        const SPECIAL_NAME = 0x0000_0400;
+
+        const IMPORT = 0x0000_1000;
+        const SERIALIZED = 0x0000_2000;
+
+        const STRING_FORMAT_MASK = 0x0003_0000;
+        const ANSI_CLASS = 0x0000_0000;
+        const UNICODE_CLASS = 0x0001_0000;
+        const AUTO_CLASS = 0x0002_0000;
+        const CUSTOM_FORMAT_CLASS = 0x0003_0000;
+        const CUSTOM_STRING_FORMAT_MASK = 0x00C0_0000;
+
+        const BEFORE_FIELD_INIT = 0x0010_0000;
+        const RT_SPECIAL_NAME = 0x0000_0800;
+        const HAS_SECURITY = 0x0004_0000;
+        const IS_TYPE_FORWARDER = 0x0020_0000;
     }
 }
 
