@@ -19,7 +19,10 @@ pub fn compile(root: &MetadataRoot, file: &[u8]) -> Vec<u8> {
     let mut methods = table.method_def.iter().enumerate().peekable();
 
     while let Some((method_index, method)) = methods.next() {
-        let next_param_index = methods.peek().map(|(_, m)| m.param_list.0 as usize - 1).unwrap_or(table.param.len());
+        let next_param_index = methods
+            .peek()
+            .map(|(_, m)| m.param_list.0 as usize - 1)
+            .unwrap_or(table.param.len());
         let params = &table.param[method.param_list.0 as usize - 1..next_param_index];
     }
 

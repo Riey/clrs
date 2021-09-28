@@ -2,7 +2,8 @@ use goblin::pe::PE;
 use goblin::pe::{data_directories::DataDirectory, utils::get_data};
 
 use clrs_pe::cil::MethodBody;
-use clrs_pe::pe::{CliHeader, MetadataRoot, TableIndex};
+use clrs_pe::pe::{CliHeader, MetadataRoot, MethodDefSig, TableIndex};
+use scroll::Pread;
 
 fn main() {
     let file = include_bytes!("../assets/HelloWorld.dll");
@@ -41,14 +42,11 @@ fn main() {
         .resolve_table(&metadata_table)
         .expect("Entry method not found");
 
-    let entry_point_params = entry_point_index.resolve_params(&metadata_table).unwrap();
     let entry_point_signature = entry_point.signature;
     dbg!(entry_point_signature.0);
-    dbg!(&heap.blob[entry_point_signature.0 as usize..entry_point_signature.0 as usize + 50]);
-
-    dbg!(entry_point);
-    dbg!(entry_point_params);
-    dbg!(entry_point_params[0].name.resolve(heap));
+    let signature = entry_point_signature.resolve(heap);
+    let signature: MethodDefSig = signature.pread_with(0, scroll::LE).unwrap();
+    dbg!(signature);
 
     let body: MethodBody = get_data(
         file,

@@ -106,9 +106,13 @@ make_single_index!(
 
 impl StringIndex {
     pub fn resolve<'a>(self, heap: Heap<'a>) -> &'a str {
-        let s = &heap.strings[self.0 as usize..];
-        let end = s.find('\0').unwrap();
-        &s[..end]
+        heap.ref_string(self.0 as usize).unwrap()
+    }
+}
+
+impl BlobIndex {
+    pub fn resolve<'a>(self, heap: Heap<'a>) -> &'a [u8] {
+        heap.ref_blob(self.0 as usize).unwrap()
     }
 }
 

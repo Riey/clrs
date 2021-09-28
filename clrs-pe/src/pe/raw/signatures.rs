@@ -1,8 +1,20 @@
 use crate::pe::{ElementType, TypeDefIndex, TypeRefIndex, TypeSpecIndex};
 use scroll::{ctx::TryFromCtx, Endian, Pread};
 
+/// Compressed UInt32
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct U(pub u32);
+pub struct U(pub u32);
+
+impl U {
+    pub fn byte_size(self) -> usize {
+        match self.0 {
+            0x00..=0x7F => 1,
+            0x80..=0x3FFF => 2,
+            0x4000..=0x3FFF_FFFF => 4,
+            _ => unreachable!(),
+        }
+    }
+}
 
 impl<'a> TryFromCtx<'a, Endian> for U {
     type Error = scroll::Error;
@@ -46,20 +58,44 @@ fn decode_num() -> Result<(), scroll::Error> {
     Ok(())
 }
 
-#[derive(Clone, Debug)]
-pub enum MethodCallingConvension {
-    Default,
-    VarArg,
-    Generic(u32),
+bitflags_tryctx! {
+    pub struct MethodCallingConvension: u8 {
+        const DEFAULT = 0x0;
+        const VAR_ARG = 0x5;
+        const GENERIC = 0x10;
+        const HAS_THIS = 0x20;
+        const EXPLICT_THIS = 0x40;
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct MethodDefSig {
-    pub has_this: bool,
-    pub explict_this: bool,
     pub calling_convension: MethodCallingConvension,
     pub ret: RetType,
     pub params: Vec<Param>,
+}
+
+impl<'a> TryFromCtx<'a, Endian> for MethodDefSig {
+    type Error = scroll::Error;
+
+    fn try_from_ctx(src: &'a [u8], ctx: Endian) -> Result<(Self, usize), Self::Error> {
+        let offset = &mut 0;
+        let calling_convension = src.gread_with(offset, ctx)?;
+        let param_count: U = src.gread_with(offset, ctx)?;
+        let ret = src.gread_with(offset, ctx)?;
+        let params = std::iter::repeat_with(|| src.gread_with(offset, ctx))
+            .take(param_count.0 as usize)
+            .collect::<Result<_, _>>()?;
+
+        Ok((
+            Self {
+                calling_convension,
+                ret,
+                params,
+            },
+            *offset,
+        ))
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -99,6 +135,7 @@ pub enum CustomMod {
     Opt(TypeDefOrRefOrSpecEncoded),
     Reqd(TypeDefOrRefOrSpecEncoded),
 }
+
 impl<'a> TryFromCtx<'a, Endian> for CustomMod {
     type Error = scroll::Error;
 
@@ -128,10 +165,65 @@ pub enum RetType {
     TypedByref,
 }
 
+impl<'a> TryFromCtx<'a, Endian> for RetType {
+    type Error = scroll::Error;
+
+    fn try_from_ctx(src: &'a [u8], ctx: Endian) -> Result<(Self, usize), Self::Error> {
+        let offset = &mut 0;
+        let ty: ElementType = src.gread_with(offset, ctx)?;
+
+        let s = match ty {
+            ElementType::Void => Self::Void,
+            ElementType::TypedByref => Self::TypedByref,
+            ElementType::Byref => Self::Type {
+                byref: true,
+                ty: src.gread_with(offset, ctx)?,
+            },
+            _ => {
+                // Reset offset
+                *offset = 0;
+                Self::Type {
+                    byref: false,
+                    ty: src.gread_with(offset, ctx)?,
+                }
+            }
+        };
+
+        Ok((s, *offset))
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Param {
     Type { byref: bool, ty: Type },
     TypedByref,
+}
+
+impl<'a> TryFromCtx<'a, Endian> for Param {
+    type Error = scroll::Error;
+
+    fn try_from_ctx(src: &'a [u8], ctx: Endian) -> Result<(Self, usize), Self::Error> {
+        let offset = &mut 0;
+        let ty: ElementType = src.gread_with(offset, ctx)?;
+
+        let s = match ty {
+            ElementType::TypedByref => Self::TypedByref,
+            ElementType::Byref => Self::Type {
+                byref: true,
+                ty: src.gread_with(offset, ctx)?,
+            },
+            _ => {
+                // Reset offset
+                *offset = 0;
+                Self::Type {
+                    byref: false,
+                    ty: src.gread_with(offset, ctx)?,
+                }
+            }
+        };
+
+        Ok((s, *offset))
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -152,5 +244,30 @@ pub enum Type {
     U,
     Object,
     String,
+
+    SzArray {
+        element_ty: Box<Type>,
+        mods: Vec<CustomMod>,
+    },
     // TODO
+}
+
+impl<'a> TryFromCtx<'a, Endian> for Type {
+    type Error = scroll::Error;
+
+    fn try_from_ctx(src: &'a [u8], ctx: Endian) -> Result<(Self, usize), Self::Error> {
+        let offset = &mut 0;
+
+        let s = match src.gread_with(offset, ctx)? {
+            ElementType::String => Self::String,
+            ElementType::SzArray => Self::SzArray {
+                // TODO
+                mods: vec![],
+                element_ty: Box::new(src.gread_with(offset, ctx)?),
+            },
+            _ => todo!(),
+        };
+
+        Ok((s, *offset))
+    }
 }

@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use goblin::container::Endian;
 use goblin::pe::data_directories::DataDirectory;
 use scroll::ctx::{StrCtx, TryFromCtx};
@@ -16,8 +18,12 @@ pub struct CliHeader {
     pub metadata: DataDirectory,
     pub flags: u32,
     pub entry_point_token: MetadataToken,
-    _empty: u64,
-    pub strong_name_signature_hash: u32,
+    pub resources: DataDirectory,
+    pub strong_name_signature_hash: DataDirectory,
+    pub code_manager_table: u64,
+    pub vtable_fixups: DataDirectory,
+    pub export_address_table_jumps: u64,
+    pub managed_native_header: u64,
 }
 
 #[derive(Debug)]
@@ -141,7 +147,38 @@ impl<'a> TryFromCtx<'a> for MetadataStream {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Heap<'a> {
-    pub strings: &'a str,
-    pub blob: &'a [u8],
-    pub guid: &'a [u8],
+    strings: &'a str,
+    blob: &'a [u8],
+    guid: &'a [u8],
+}
+
+const GUID_SIZE: usize = 128 / 8;
+
+impl<'a> Heap<'a> {
+    pub fn ref_string(self, index: usize) -> Option<&'a str> {
+        if index == 0 {
+            return None;
+        }
+
+        let ret = self.strings.get(index..)?;
+        ret.split('\0').next()
+    }
+
+    pub fn ref_blob(self, mut index: usize) -> Option<&'a [u8]> {
+        if index == 0 {
+            return None;
+        }
+
+        let length: U = self.blob.gread_with(&mut index, scroll::LE).ok()?;
+
+        self.blob.get(index..index + length.0 as usize)
+    }
+
+    pub fn ref_guid(self, index: usize) -> Option<&'a [u8; GUID_SIZE]> {
+        if index == 0 {
+            return None;
+        }
+
+        self.guid.get(index..index + GUID_SIZE)?.try_into().ok()
+    }
 }
