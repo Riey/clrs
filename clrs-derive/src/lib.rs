@@ -156,6 +156,7 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     });
 
     let impls = lines.iter().map(|(field, _, ty, ..)| {
+        let list_fn_name = syn::Ident::new(&format!("list_{}", field), field.span());
         let index_ty_name = syn::Ident::new(&format!("{}Index", ty), ty.span());
 
         quote! {
@@ -165,6 +166,12 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             impl From<u32> for #index_ty_name {
                 fn from(n: u32) -> Self {
                     Self(n)
+                }
+            }
+
+            impl MetadataTable {
+                pub fn #list_fn_name(&self) -> impl Iterator<Item = (#index_ty_name, &#ty)> {
+                    self.#field.iter().enumerate().map(|(i, v)| (#index_ty_name((i as u32) + 1), v))
                 }
             }
 

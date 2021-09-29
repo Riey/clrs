@@ -7,6 +7,7 @@ edition = "2018"
 
 [dependencies]
 clrs-pe = { path = "./clrs-pe" }
+clrs-compiler = { path = "./clrs-compiler" }
 
 [dev-dependencies]
 goblin = "0.4.3"
