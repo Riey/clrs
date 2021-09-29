@@ -68,7 +68,7 @@ bitflags_tryctx! {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MethodDefSig {
     pub calling_convension: MethodCallingConvension,
     pub ret: RetType,
@@ -98,7 +98,7 @@ impl<'a> TryFromCtx<'a, Endian> for MethodDefSig {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeDefOrRefOrSpecEncoded {
     TypeDef(TypeDefIndex),
     TypeRef(TypeRefIndex),
@@ -130,7 +130,7 @@ impl<'a> TryFromCtx<'a, Endian> for TypeDefOrRefOrSpecEncoded {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CustomMod {
     Opt(TypeDefOrRefOrSpecEncoded),
     Reqd(TypeDefOrRefOrSpecEncoded),
@@ -158,7 +158,7 @@ impl<'a> TryFromCtx<'a, Endian> for CustomMod {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RetType {
     Type { byref: bool, ty: Type },
     Void,
@@ -193,7 +193,7 @@ impl<'a> TryFromCtx<'a, Endian> for RetType {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Param {
     Type { byref: bool, ty: Type },
     TypedByref,
@@ -226,7 +226,7 @@ impl<'a> TryFromCtx<'a, Endian> for Param {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     Boolean,
     Char,
@@ -292,4 +292,32 @@ impl<'a> TryFromCtx<'a, Endian> for Type {
 
         Ok((s, *offset))
     }
+}
+
+#[test]
+fn signature_main() {
+    let sig: MethodDefSig = [
+        0,  // default
+        1,  // one param
+        1,  // void return
+        29, // array of
+        14, // string
+    ]
+    .pread_with(0, scroll::LE)
+    .unwrap();
+
+    assert_eq!(
+        sig,
+        MethodDefSig {
+            ret: RetType::Void,
+            params: vec![Param::Type {
+                byref: false,
+                ty: Type::SzArray {
+                    element_ty: Box::new(Type::String),
+                    mods: vec![],
+                },
+            },],
+            calling_convension: MethodCallingConvension::DEFAULT,
+        }
+    );
 }

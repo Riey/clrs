@@ -159,7 +159,7 @@ pub fn make_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let index_ty_name = syn::Ident::new(&format!("{}Index", ty), ty.span());
 
         quote! {
-            #[derive(Copy, Clone, Debug)]
+            #[derive(Copy, Clone, Debug, PartialEq, Eq)]
             pub struct #index_ty_name(pub u32);
 
             impl From<u32> for #index_ty_name {
