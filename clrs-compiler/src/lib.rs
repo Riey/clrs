@@ -67,12 +67,12 @@ impl WasmContext {
         let mut module = Module::new();
         module
             .section(&self.types)
-            .section(&self.functions)
-            .section(&self.exports)
             .section(&self.imports)
+            .section(&self.functions)
             .section(&self.memory)
-            .section(&self.data)
-            .section(&self.codes);
+            .section(&self.exports)
+            .section(&self.codes)
+            .section(&self.data);
         module.finish()
     }
 
