@@ -182,11 +182,13 @@ impl WasmContext {
                     f.instruction(WasmInst::Return);
                 }
                 Instruction::LdArg(n) => {
-                    f.instruction(WasmInst::LocalGet(*n));
+                    // f.instruction(WasmInst::LocalGet(*n));
                 }
                 _ => todo!("{:?}", inst),
             }
         }
+
+        f.instruction(WasmInst::End);
 
         f
     }
