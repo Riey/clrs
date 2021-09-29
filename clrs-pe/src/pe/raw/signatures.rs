@@ -249,6 +249,10 @@ pub enum Type {
         element_ty: Box<Type>,
         mods: Vec<CustomMod>,
     },
+
+    Var {
+        count: U,
+    },
     // TODO
 }
 
@@ -259,11 +263,29 @@ impl<'a> TryFromCtx<'a, Endian> for Type {
         let offset = &mut 0;
 
         let s = match src.gread_with(offset, ctx)? {
+            ElementType::Boolean => Self::Boolean,
+            ElementType::Char => Self::Char,
+            ElementType::I1 => Self::I1,
+            ElementType::U1 => Self::U1,
+            ElementType::I2 => Self::I2,
+            ElementType::U2 => Self::U2,
+            ElementType::I4 => Self::I4,
+            ElementType::U4 => Self::U4,
+            ElementType::I8 => Self::I8,
+            ElementType::U8 => Self::U8,
+            ElementType::R4 => Self::R4,
+            ElementType::R8 => Self::R8,
+            ElementType::I => Self::I,
+            ElementType::U => Self::U,
+            ElementType::Object => Self::Object,
             ElementType::String => Self::String,
             ElementType::SzArray => Self::SzArray {
                 // TODO
                 mods: vec![],
                 element_ty: Box::new(src.gread_with(offset, ctx)?),
+            },
+            ElementType::Var => Self::Var {
+                count: src.gread_with(offset, ctx)?,
             },
             _ => todo!(),
         };
