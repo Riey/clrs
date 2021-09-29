@@ -7,7 +7,9 @@ use wasm_encoder::{
 };
 
 use clrs_pe::cil::{Instruction, MethodBody};
-use clrs_pe::pe::{Image, MetadataRoot, MethodDefSig, Param, RetType, Type, UserStringIndex};
+use clrs_pe::pe::{
+    Image, MetadataRoot, MethodDefIndex, MethodDefSig, Param, RetType, Type, UserStringIndex,
+};
 
 struct WasmContext {
     types: TypeSection,
@@ -17,6 +19,7 @@ struct WasmContext {
     data: DataSection,
     memory: MemorySection,
     string_cache: HashMap<UserStringIndex, i32>,
+    method_lookup: HashMap<MethodDefIndex, u32>,
 }
 
 const VAL_PTR: ValType = ValType::I32;
@@ -50,6 +53,7 @@ impl WasmContext {
             memory,
             codes: CodeSection::new(),
             string_cache,
+            method_lookup: HashMap::new(),
         }
     }
 
@@ -112,6 +116,7 @@ impl WasmContext {
     fn convert_wasm_function(&self, body: &MethodBody) -> Function {
         dbg!(body);
 
+        // TODO: arg, locals
         let locals = vec![];
         let mut f = Function::new(locals);
 
@@ -122,11 +127,23 @@ impl WasmContext {
                 }
                 Instruction::LdStr(s) => {
                     let s = s.as_userstring().unwrap();
+
+                    // TODO: handling null
+                    // if s.0 == 0 {
+                    // }
+
                     f.instruction(WasmInst::I32Const(self.string_cache[&s]));
+                    // TODO: alloc literal
+                    // f.instruction(WasmInst::Call(0));
                 }
-                Instruction::Call(_method) => {
-                    eprintln!("TODO: CALL");
-                    f.instruction(WasmInst::Call(0));
+                Instruction::Call(method) => {
+                    if let Some(member) = method.as_member_ref() {
+                    } else if let Some(method) = method.as_method_def() {
+                        f.instruction(WasmInst::Call(self.method_lookup[&method]));
+                    } else if let Some(spec) = method.as_method_spec() {
+                    } else {
+                        panic!("Invalid Call argument")
+                    }
                 }
                 Instruction::Ret => {
                     f.instruction(WasmInst::Return);
@@ -141,7 +158,12 @@ impl WasmContext {
         f
     }
 
-    pub fn emit_wasm_function(&mut self, name: &str, signature: &MethodDefSig, body: &MethodBody) {
+    pub fn emit_wasm_function_header(
+        &mut self,
+        name: &str,
+        index: MethodDefIndex,
+        signature: &MethodDefSig,
+    ) {
         let mut params = Vec::new();
         signature
             .params
@@ -150,8 +172,13 @@ impl WasmContext {
         let type_index = self.types.len();
         self.types
             .function(params, self.convert_wasm_return(&signature.ret));
+        let func_index = self.functions.len();
+        self.method_lookup.insert(index, func_index);
         self.functions.function(type_index);
         self.exports.export(name, Export::Function(type_index));
+    }
+
+    pub fn emit_wasm_function_body(&mut self, body: &MethodBody) {
         let func = self.convert_wasm_function(body);
         self.codes.function(&func);
     }
@@ -162,12 +189,16 @@ pub fn compile(image: &Image) -> Vec<u8> {
     let mut ctx = WasmContext::new(root);
     let table = &root.metadata_stream.table;
 
-    for (_index, method) in table.list_method_def() {
+    for (index, method) in table.list_method_def() {
         let name = method.name.resolve(root.heap);
         let signature = method.resolve_signature(root.heap);
-        let body = method.resolve_body(image);
 
-        ctx.emit_wasm_function(name, &signature, &body);
+        ctx.emit_wasm_function_header(name, index, &signature);
+    }
+
+    for (_, method) in table.list_method_def() {
+        let body = method.resolve_body(image);
+        ctx.emit_wasm_function_body(&body);
     }
 
     ctx.finish()
