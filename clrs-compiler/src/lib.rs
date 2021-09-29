@@ -11,13 +11,13 @@ use wasm_encoder::{
 use clrs_pe::cil::{Instruction, MethodBody};
 use clrs_pe::pe::{
     Heap, Image, MemberRef, MemberRefIndex, MemberRefParent, MetadataRoot, MetadataTable,
-    MethodDefIndex, MethodDefSig, Param, RetType, TableIndex, Type, UserStringIndex,
+    MethodCallingConvension, MethodDefIndex, MethodDefSig, Param, RetType, TableIndex, Type,
+    UserStringIndex,
 };
 
 #[derive(Clone)]
 struct MethodCacheData {
     pub fn_index: u32,
-    pub param_types: Rc<Vec<ValType>>,
 }
 
 #[derive(Clone)]
@@ -159,15 +159,9 @@ impl WasmContext {
         }
     }
 
-    fn convert_wasm_function(
-        &self,
-        index: MethodDefIndex,
-        body: &MethodBody,
-    ) -> Function {
-        let method_data = &self.method_cache[&index];
-
+    fn convert_wasm_function(&self, body: &MethodBody) -> Function {
         // TODO: locals
-        let mut f = Function::new(method_data.param_types.iter().map(|t| (1, *t)));
+        let mut f = Function::new(vec![]);
 
         for inst in body.instructions.iter() {
             match inst {
@@ -219,6 +213,12 @@ impl WasmContext {
             .entry(signature)
             .or_insert_with_key(|signature| {
                 let mut params = Vec::new();
+                if signature
+                    .calling_convension
+                    .contains(MethodCallingConvension::HAS_THIS)
+                {
+                    params.push(VAL_PTR);
+                }
                 signature
                     .params
                     .iter()
@@ -276,24 +276,14 @@ impl WasmContext {
         let sig_data = self.wasm_method_sig(signature);
 
         let fn_index = self.compute_fn_index(false);
-        self.method_cache.insert(
-            index,
-            MethodCacheData {
-                fn_index,
-                param_types: sig_data.param_types,
-            },
-        );
+        self.method_cache
+            .insert(index, MethodCacheData { fn_index });
         self.functions.function(sig_data.type_index);
-        self.exports
-            .export(name, Export::Function(fn_index));
+        self.exports.export(name, Export::Function(fn_index));
     }
 
-    pub fn emit_wasm_function_body(
-        &mut self,
-        index: MethodDefIndex,
-        body: &MethodBody,
-    ) {
-        let func = self.convert_wasm_function(index, body);
+    pub fn emit_wasm_function_body(&mut self, body: &MethodBody) {
+        let func = self.convert_wasm_function(body);
         self.codes.function(&func);
     }
 }
@@ -314,9 +304,9 @@ pub fn compile(image: &Image) -> Vec<u8> {
         ctx.emit_wasm_function_header(name, index, signature);
     }
 
-    for (index, method) in table.list_method_def() {
+    for (_index, method) in table.list_method_def() {
         let body = method.resolve_body(image);
-        ctx.emit_wasm_function_body(index, &body);
+        ctx.emit_wasm_function_body(&body);
     }
 
     ctx.finish()
