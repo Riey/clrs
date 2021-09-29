@@ -8,7 +8,7 @@ use scroll::{ctx::TryFromCtx, Pread};
 macro_rules! make_single_index {
     ($($name:ident,)+) => {
         $(
-            #[derive(Debug, Clone, Copy)]
+            #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
             pub struct $name(pub u32);
 
             impl From<u32> for $name {
@@ -100,6 +100,7 @@ make_single_index!(
     NotUsed2Index,
     NotUsed3Index,
     StringIndex,
+    UserStringIndex,
     BlobIndex,
     GuidIndex,
 );
@@ -107,6 +108,12 @@ make_single_index!(
 impl StringIndex {
     pub fn resolve<'a>(self, heap: Heap<'a>) -> &'a str {
         heap.ref_string(self.0 as usize).unwrap()
+    }
+}
+
+impl UserStringIndex {
+    pub fn resolve<'a>(self, heap: Heap<'a>) -> &'a [u8] {
+        heap.ref_user_string(self.0 as usize).unwrap()
     }
 }
 

@@ -2,6 +2,7 @@ use std::convert::TryInto;
 
 use goblin::container::Endian;
 use goblin::pe::data_directories::DataDirectory;
+use goblin::pe::section_table::SectionTable;
 use goblin::pe::utils::get_data;
 use goblin::pe::PE;
 use scroll::ctx::{StrCtx, TryFromCtx};
@@ -13,6 +14,8 @@ pub use self::raw::*;
 
 pub struct Image<'a> {
     bytes: &'a [u8],
+    file_alignment: u32,
+    sections: Vec<SectionTable>,
     cli_header: CliHeader,
     metadata_root: MetadataRoot<'a>,
 }
@@ -29,25 +32,40 @@ impl<'a> Image<'a> {
             .data_directories
             .get_clr_runtime_header()
             .expect("No CLI header");
-        let sections = &pe.sections;
+        let sections = pe.sections;
 
         let cli_header_value: CliHeader =
-            get_data(bytes, sections, cli_header, file_alignment).unwrap();
+            get_data(bytes, &sections, cli_header, file_alignment).unwrap();
         let metadata_root: MetadataRoot =
-            get_data(bytes, sections, cli_header_value.metadata, file_alignment).unwrap();
+            get_data(bytes, &sections, cli_header_value.metadata, file_alignment).unwrap();
         Ok(Self {
             bytes,
+            file_alignment,
+            sections,
             cli_header: cli_header_value,
             metadata_root,
         })
     }
 
-    pub fn bytes(&self) -> &'a [u8] {
-        self.bytes
+    pub fn get_data<T: TryFromCtx<'a, Endian, Error = scroll::Error>>(
+        &self,
+        rva: u32,
+    ) -> Result<T, goblin::error::Error> {
+        get_data(
+            self.bytes,
+            &self.sections,
+            DataDirectory {
+                virtual_address: rva,
+                size: 0,
+            },
+            self.file_alignment,
+        )
     }
+
     pub fn cli_header(&self) -> &CliHeader {
         &self.cli_header
     }
+
     pub fn metadata_root(&self) -> &MetadataRoot<'a> {
         &self.metadata_root
     }
@@ -70,7 +88,7 @@ pub struct CliHeader {
     pub managed_native_header: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MetadataRoot<'a> {
     pub signature: u32,
     pub major_version: u16,
@@ -124,7 +142,9 @@ impl<'a> TryFromCtx<'a, Endian> for MetadataRoot<'a> {
                 "#GUID" => {
                     heap.guid = stream_src;
                 }
-                "#US" => {}
+                "#US" => {
+                    heap.user_string = stream_src;
+                }
                 other => {
                     eprintln!("Unknown stream header: {}", other);
                 }
@@ -147,7 +167,7 @@ impl<'a> TryFromCtx<'a, Endian> for MetadataRoot<'a> {
 
 /// #~
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MetadataStream {
     pub major_version: u8,
     pub minor_version: u8,
@@ -192,6 +212,7 @@ impl<'a> TryFromCtx<'a> for MetadataStream {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Heap<'a> {
     strings: &'a str,
+    user_string: &'a [u8],
     blob: &'a [u8],
     guid: &'a [u8],
 }
@@ -199,6 +220,17 @@ pub struct Heap<'a> {
 const GUID_SIZE: usize = 128 / 8;
 
 impl<'a> Heap<'a> {
+    pub fn list_user_string(self) -> impl Iterator<Item = (UserStringIndex, &'a [u8])> {
+        let mut index = 0;
+
+        std::iter::from_fn(move || {
+            index += 1;
+            self.ref_user_string(index)
+                .map(|s| (UserStringIndex(index as u32), s))
+        })
+        .fuse()
+    }
+
     pub fn ref_string(self, index: usize) -> Option<&'a str> {
         if index == 0 {
             return None;
@@ -206,6 +238,16 @@ impl<'a> Heap<'a> {
 
         let ret = self.strings.get(index..)?;
         ret.split('\0').next()
+    }
+
+    pub fn ref_user_string(self, mut index: usize) -> Option<&'a [u8]> {
+        if index == 0 {
+            return None;
+        }
+
+        let length: U = self.user_string.gread_with(&mut index, scroll::LE).ok()?;
+
+        self.user_string.get(index..index + length.0 as usize)
     }
 
     pub fn ref_blob(self, mut index: usize) -> Option<&'a [u8]> {

@@ -1,4 +1,9 @@
-use super::{indices::*, PeCtx};
+use crate::{
+    cil::MethodBody,
+    pe::{Heap, Image},
+};
+
+use super::{indices::*, MethodDefSig, PeCtx};
 use clrs_derive::{make_table, ClrPread};
 use scroll::{ctx::TryFromCtx, Pread};
 
@@ -53,7 +58,7 @@ make_table! {
         ImportScope: u32 => 0x35,
         StateMachineMethod: u32 => 0x36,
         CustomDebugInformation: u32 => 0x37,
-        String: StringIndex => 0x70,
+        UserString: UserStringIndex => 0x70,
     }
 }
 
@@ -661,4 +666,17 @@ pub struct TypeRef {
 #[derive(Debug, ClrPread, Clone, Copy)]
 pub struct TypeSpec {
     pub signature: BlobIndex,
+}
+
+impl MethodDef {
+    pub fn resolve_signature(self, heap: Heap) -> MethodDefSig {
+        self.signature
+            .resolve(heap)
+            .pread_with(0, scroll::LE)
+            .expect("Parse Signature")
+    }
+
+    pub fn resolve_body(self, image: &Image) -> MethodBody {
+        image.get_data(self.rva).expect("Parse MethodBody")
+    }
 }
