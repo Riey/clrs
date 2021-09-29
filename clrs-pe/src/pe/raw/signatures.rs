@@ -2,7 +2,8 @@ use crate::pe::{ElementType, TypeDefIndex, TypeRefIndex, TypeSpecIndex};
 use scroll::{ctx::TryFromCtx, Endian, Pread};
 
 /// Compressed UInt32
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+#[repr(transparent)]
 pub struct U(pub u32);
 
 impl U {
@@ -68,7 +69,7 @@ bitflags_tryctx! {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MethodDefSig {
     pub calling_convension: MethodCallingConvension,
     pub ret: RetType,
@@ -98,7 +99,7 @@ impl<'a> TryFromCtx<'a, Endian> for MethodDefSig {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TypeDefOrRefOrSpecEncoded {
     TypeDef(TypeDefIndex),
     TypeRef(TypeRefIndex),
@@ -130,7 +131,7 @@ impl<'a> TryFromCtx<'a, Endian> for TypeDefOrRefOrSpecEncoded {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum CustomMod {
     Opt(TypeDefOrRefOrSpecEncoded),
     Reqd(TypeDefOrRefOrSpecEncoded),
@@ -158,7 +159,7 @@ impl<'a> TryFromCtx<'a, Endian> for CustomMod {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum RetType {
     Type { byref: bool, ty: Type },
     Void,
@@ -193,7 +194,7 @@ impl<'a> TryFromCtx<'a, Endian> for RetType {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Param {
     Type { byref: bool, ty: Type },
     TypedByref,
@@ -226,7 +227,7 @@ impl<'a> TryFromCtx<'a, Endian> for Param {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Type {
     Boolean,
     Char,
