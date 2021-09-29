@@ -247,7 +247,9 @@ impl<'a> Heap<'a> {
 
         let length: U = self.user_string.gread_with(&mut index, scroll::LE).ok()?;
 
-        self.user_string.get(index..index + length.0 as usize)
+        // cut tralling NULL
+        self.user_string
+            .get(index..index + length.0.saturating_sub(1) as usize)
     }
 
     pub fn ref_blob(self, mut index: usize) -> Option<&'a [u8]> {
