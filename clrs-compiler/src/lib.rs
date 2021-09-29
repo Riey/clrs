@@ -7,9 +7,7 @@ use wasm_encoder::{
 };
 
 use clrs_pe::cil::{Instruction, MethodBody};
-use clrs_pe::pe::{
-    Image, MetadataRoot, MethodDefIndex, MethodDefSig, Param, RetType, Type, UserStringIndex,
-};
+use clrs_pe::pe::{Heap, Image, MetadataRoot, MetadataTable, MethodDefIndex, MethodDefSig, Param, RetType, TableIndex, Type, UserStringIndex};
 
 struct WasmContext {
     types: TypeSection,
@@ -113,9 +111,7 @@ impl WasmContext {
         }
     }
 
-    fn convert_wasm_function(&self, body: &MethodBody) -> Function {
-        dbg!(body);
-
+    fn convert_wasm_function(&self, body: &MethodBody, table: &MetadataTable, heap: Heap) -> Function {
         // TODO: arg, locals
         let locals = vec![];
         let mut f = Function::new(locals);
@@ -138,11 +134,17 @@ impl WasmContext {
                 }
                 Instruction::Call(method) => {
                     if let Some(member) = method.as_member_ref() {
+                        let member_ref = member.resolve_table(table).unwrap();
+                        let member_sig = member_ref.resolve_signature(heap);
+
+                        dbg!(member_ref.name.resolve(heap));
+                        dbg!(member_sig);
                     } else if let Some(method) = method.as_method_def() {
                         f.instruction(WasmInst::Call(self.method_lookup[&method]));
-                    } else if let Some(spec) = method.as_method_spec() {
+                    } else if let Some(_spec) = method.as_method_spec() {
+                        todo!("Call via MethodSpec");
                     } else {
-                        panic!("Invalid Call argument")
+                        panic!("Invalid Call argument");
                     }
                 }
                 Instruction::Ret => {
@@ -178,8 +180,8 @@ impl WasmContext {
         self.exports.export(name, Export::Function(type_index));
     }
 
-    pub fn emit_wasm_function_body(&mut self, body: &MethodBody) {
-        let func = self.convert_wasm_function(body);
+    pub fn emit_wasm_function_body(&mut self, body: &MethodBody, table: &MetadataTable, heap: Heap) {
+        let func = self.convert_wasm_function(body, table, heap);
         self.codes.function(&func);
     }
 }
@@ -198,7 +200,7 @@ pub fn compile(image: &Image) -> Vec<u8> {
 
     for (_, method) in table.list_method_def() {
         let body = method.resolve_body(image);
-        ctx.emit_wasm_function_body(&body);
+        ctx.emit_wasm_function_body(&body, table, root.heap);
     }
 
     ctx.finish()

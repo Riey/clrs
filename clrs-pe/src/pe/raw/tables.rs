@@ -668,6 +668,15 @@ pub struct TypeSpec {
     pub signature: BlobIndex,
 }
 
+impl MemberRef {
+    pub fn resolve_signature(self, heap: Heap) -> MethodDefSig {
+        self.signature
+            .resolve(heap)
+            .pread_with(0, scroll::LE)
+            .expect("Parse Signature")
+    }
+}
+
 impl MethodDef {
     pub fn resolve_signature(self, heap: Heap) -> MethodDefSig {
         self.signature
