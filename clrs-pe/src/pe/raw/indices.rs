@@ -35,7 +35,7 @@ const fn get_tag_mask(tag_size: u16) -> u16 {
 
 macro_rules! make_coded_index {
     (($name:ident, $tag_size:expr, [$($ty:ident,)+]), $($t:tt)*) => {
-        #[derive(Clone, Copy)]
+        #[derive(Clone, Copy, Eq, PartialEq, Hash)]
         pub enum $name {
             $(
                 $ty($ty),

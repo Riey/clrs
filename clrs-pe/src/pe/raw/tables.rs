@@ -550,7 +550,7 @@ pub struct ManifestResource {
 }
 
 #[repr(C)]
-#[derive(Debug, ClrPread, Clone, Copy)]
+#[derive(Debug, ClrPread, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MemberRef {
     pub class: MemberRefParent,
     pub name: StringIndex,

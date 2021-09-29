@@ -12,6 +12,7 @@ clrs-compiler = { path = "./clrs-compiler" }
 [dev-dependencies]
 goblin = "0.4.3"
 scroll = "0.10.2"
+wasmparser = "0.80.1"
 wasmprinter = "0.2.29"
 
 [workspace]

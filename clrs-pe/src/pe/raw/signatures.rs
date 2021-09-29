@@ -288,7 +288,9 @@ impl<'a> TryFromCtx<'a, Endian> for Type {
             ElementType::Var => Self::Var {
                 count: src.gread_with(offset, ctx)?,
             },
-            _ => todo!(),
+            // TODO
+            ElementType::ValueType => Self::I4,
+            other => todo!("{:?}", other),
         };
 
         Ok((s, *offset))
