@@ -2,12 +2,56 @@ use std::convert::TryInto;
 
 use goblin::container::Endian;
 use goblin::pe::data_directories::DataDirectory;
+use goblin::pe::utils::get_data;
+use goblin::pe::PE;
 use scroll::ctx::{StrCtx, TryFromCtx};
 use scroll::{Pread, LE};
 
 mod raw;
 
 pub use self::raw::*;
+
+pub struct Image<'a> {
+    bytes: &'a [u8],
+    cli_header: CliHeader,
+    metadata_root: MetadataRoot<'a>,
+}
+
+impl<'a> Image<'a> {
+    pub fn from_bytes(bytes: &'a [u8]) -> goblin::error::Result<Self> {
+        let pe = PE::parse(bytes).unwrap();
+        if pe.header.coff_header.machine != 0x14c {
+            panic!("Is not a .Net executable");
+        }
+        let optional_header = pe.header.optional_header.expect("No optional header");
+        let file_alignment = optional_header.windows_fields.file_alignment;
+        let cli_header = optional_header
+            .data_directories
+            .get_clr_runtime_header()
+            .expect("No CLI header");
+        let sections = &pe.sections;
+
+        let cli_header_value: CliHeader =
+            get_data(bytes, sections, cli_header, file_alignment).unwrap();
+        let metadata_root: MetadataRoot =
+            get_data(bytes, sections, cli_header_value.metadata, file_alignment).unwrap();
+        Ok(Self {
+            bytes,
+            cli_header: cli_header_value,
+            metadata_root,
+        })
+    }
+
+    pub fn bytes(&self) -> &'a [u8] {
+        self.bytes
+    }
+    pub fn cli_header(&self) -> &CliHeader {
+        &self.cli_header
+    }
+    pub fn metadata_root(&self) -> &MetadataRoot<'a> {
+        &self.metadata_root
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Pread)]
