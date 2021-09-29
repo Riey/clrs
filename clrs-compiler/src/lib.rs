@@ -2,22 +2,28 @@ use std::collections::HashMap;
 
 use scroll::Pread;
 use wasm_encoder::{
-    CodeSection, DataSection, Export, ExportSection, Function, FunctionSection,
-    Instruction as WasmInst, MemorySection, MemoryType, Module, TypeSection, ValType,
+    CodeSection, DataSection, EntityType, Export, ExportSection, Function, FunctionSection,
+    ImportSection, Instruction as WasmInst, MemorySection, MemoryType, Module, TypeSection,
+    ValType,
 };
 
 use clrs_pe::cil::{Instruction, MethodBody};
-use clrs_pe::pe::{Heap, Image, MetadataRoot, MetadataTable, MethodDefIndex, MethodDefSig, Param, RetType, TableIndex, Type, UserStringIndex};
+use clrs_pe::pe::{
+    Heap, Image, MemberRefParent, MetadataRoot, MetadataTable, MethodDefIndex, MethodDefSig, Param,
+    RetType, TableIndex, Type, UserStringIndex,
+};
 
 struct WasmContext {
     types: TypeSection,
     functions: FunctionSection,
     exports: ExportSection,
+    imports: ImportSection,
     codes: CodeSection,
     data: DataSection,
     memory: MemorySection,
+    signature_cache: HashMap<MethodDefSig, u32>,
     string_cache: HashMap<UserStringIndex, i32>,
-    method_lookup: HashMap<MethodDefIndex, u32>,
+    method_cache: HashMap<MethodDefIndex, u32>,
 }
 
 const VAL_PTR: ValType = ValType::I32;
@@ -47,11 +53,13 @@ impl WasmContext {
             types: TypeSection::new(),
             functions: FunctionSection::new(),
             exports: ExportSection::new(),
+            imports: ImportSection::new(),
             data,
             memory,
             codes: CodeSection::new(),
             string_cache,
-            method_lookup: HashMap::new(),
+            signature_cache: HashMap::new(),
+            method_cache: HashMap::new(),
         }
     }
 
@@ -61,13 +69,14 @@ impl WasmContext {
             .section(&self.types)
             .section(&self.functions)
             .section(&self.exports)
+            .section(&self.imports)
             .section(&self.memory)
             .section(&self.data)
             .section(&self.codes);
         module.finish()
     }
 
-    fn convert_wasm_param(&self, out: &mut Vec<ValType>, param: &Param) {
+    fn convert_wasm_param(out: &mut Vec<ValType>, param: &Param) {
         match param {
             Param::Type { byref: true, .. } => {
                 out.push(VAL_PTR);
@@ -104,14 +113,19 @@ impl WasmContext {
         }
     }
 
-    fn convert_wasm_return(&self, ret: &RetType) -> Vec<ValType> {
+    fn convert_wasm_return(ret: &RetType) -> Vec<ValType> {
         match ret {
             RetType::Void => vec![],
             _ => todo!(),
         }
     }
 
-    fn convert_wasm_function(&self, body: &MethodBody, table: &MetadataTable, heap: Heap) -> Function {
+    fn convert_wasm_function(
+        &mut self,
+        body: &MethodBody,
+        table: &MetadataTable,
+        heap: Heap,
+    ) -> Function {
         // TODO: arg, locals
         let locals = vec![];
         let mut f = Function::new(locals);
@@ -136,11 +150,28 @@ impl WasmContext {
                     if let Some(member) = method.as_member_ref() {
                         let member_ref = member.resolve_table(table).unwrap();
                         let member_sig = member_ref.resolve_signature(heap);
+                        let member_func_name = member_ref.name.resolve(heap);
+                        let member_func_ty = self.get_method_type_index(member_sig);
 
-                        dbg!(member_ref.name.resolve(heap));
-                        dbg!(member_sig);
+                        match member_ref.class {
+                            MemberRefParent::TypeRefIndex(ty_ref) => {
+                                let ty_ref = ty_ref.resolve_table(table).unwrap();
+
+                                let namespace = ty_ref.type_namespace.resolve(heap);
+                                let name = ty_ref.type_name.resolve(heap);
+
+                                self.imports.import(
+                                    "env",
+                                    Some(&format!("{}::{}::{}", namespace, name, member_func_name)),
+                                    EntityType::Function(member_func_ty),
+                                );
+
+                                dbg!(ty_ref);
+                            }
+                            other => todo!("{:?}", other),
+                        }
                     } else if let Some(method) = method.as_method_def() {
-                        f.instruction(WasmInst::Call(self.method_lookup[&method]));
+                        f.instruction(WasmInst::Call(self.method_cache[&method]));
                     } else if let Some(_spec) = method.as_method_spec() {
                         todo!("Call via MethodSpec");
                     } else {
@@ -160,27 +191,44 @@ impl WasmContext {
         f
     }
 
+    fn get_method_type_index(&mut self, signature: MethodDefSig) -> u32 {
+        let types = &mut self.types;
+
+        *self
+            .signature_cache
+            .entry(signature)
+            .or_insert_with_key(|signature| {
+                let mut params = Vec::new();
+                signature
+                    .params
+                    .iter()
+                    .for_each(|p| Self::convert_wasm_param(&mut params, p));
+                let type_index = types.len();
+                types.function(params, Self::convert_wasm_return(&signature.ret));
+                type_index
+            })
+    }
+
     pub fn emit_wasm_function_header(
         &mut self,
         name: &str,
         index: MethodDefIndex,
-        signature: &MethodDefSig,
+        signature: MethodDefSig,
     ) {
-        let mut params = Vec::new();
-        signature
-            .params
-            .iter()
-            .for_each(|p| self.convert_wasm_param(&mut params, p));
-        let type_index = self.types.len();
-        self.types
-            .function(params, self.convert_wasm_return(&signature.ret));
+        let type_index = self.get_method_type_index(signature);
+
         let func_index = self.functions.len();
-        self.method_lookup.insert(index, func_index);
+        self.method_cache.insert(index, func_index);
         self.functions.function(type_index);
         self.exports.export(name, Export::Function(type_index));
     }
 
-    pub fn emit_wasm_function_body(&mut self, body: &MethodBody, table: &MetadataTable, heap: Heap) {
+    pub fn emit_wasm_function_body(
+        &mut self,
+        body: &MethodBody,
+        table: &MetadataTable,
+        heap: Heap,
+    ) {
         let func = self.convert_wasm_function(body, table, heap);
         self.codes.function(&func);
     }
@@ -195,7 +243,7 @@ pub fn compile(image: &Image) -> Vec<u8> {
         let name = method.name.resolve(root.heap);
         let signature = method.resolve_signature(root.heap);
 
-        ctx.emit_wasm_function_header(name, index, &signature);
+        ctx.emit_wasm_function_header(name, index, signature);
     }
 
     for (_, method) in table.list_method_def() {
