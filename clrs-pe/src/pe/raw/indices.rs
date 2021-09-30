@@ -8,7 +8,7 @@ use scroll::{ctx::TryFromCtx, Pread};
 macro_rules! make_single_index {
     ($($name:ident,)+) => {
         $(
-            #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+            #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
             pub struct $name(pub u32);
 
             impl From<u32> for $name {
