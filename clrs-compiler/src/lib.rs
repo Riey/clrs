@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-
-use scroll::Pread;
 use std::rc::Rc;
 use wasm_encoder::{
     CodeSection, DataSection, EntityType, Export, ExportSection, Function, FunctionSection,
@@ -12,7 +10,7 @@ use clrs_pe::cil::{Instruction, MethodBody};
 use clrs_pe::pe::{
     Heap, Image, MemberRef, MemberRefIndex, MemberRefParent, MetadataRoot, MetadataTable,
     MethodCallingConvension, MethodDefIndex, MethodDefSig, Param, RetType, TableIndex, Type,
-    UserStringIndex,
+    TypeDef, TypeDefIndex, UserStringIndex,
 };
 
 #[derive(Clone)]
@@ -237,6 +235,17 @@ impl WasmContext {
             .clone()
     }
 
+    fn get_method_full_name(
+        type_namespace: Option<&str>,
+        type_name: &str,
+        method_name: &str,
+    ) -> String {
+        match type_namespace {
+            Some(namespace) => format!("[{}]{}::{}", namespace, type_name, method_name),
+            None => format!("{}::{}", type_name, method_name),
+        }
+    }
+
     pub fn emit_wasm_member_ref(
         &mut self,
         member_ref_index: MemberRefIndex,
@@ -245,7 +254,7 @@ impl WasmContext {
         heap: Heap,
     ) {
         let member_sig = member_ref.resolve_signature(heap);
-        let member_func_name = member_ref.name.resolve(heap);
+        let member_func_name = member_ref.name.resolve(heap).unwrap();
         let member_func_ty = self.wasm_method_sig(member_sig);
         match member_ref.class {
             MemberRefParent::TypeRefIndex(ty_ref) => {
@@ -257,7 +266,11 @@ impl WasmContext {
                 let fn_index = self.compute_fn_index(true);
                 self.imports.import(
                     "env",
-                    Some(&format!("[{}]{}::{}", namespace, name, member_func_name)),
+                    Some(&Self::get_method_full_name(
+                        namespace,
+                        name.unwrap(),
+                        member_func_name,
+                    )),
                     EntityType::Function(member_func_ty.type_index),
                 );
                 self.member_ref_cache
@@ -267,7 +280,29 @@ impl WasmContext {
         }
     }
 
-    pub fn emit_wasm_function_header(
+    pub fn emit_wasm_type_header(
+        &mut self,
+        ty_index: TypeDefIndex,
+        ty_def: &TypeDef,
+        table: &MetadataTable,
+        heap: Heap,
+    ) {
+        let namespace = ty_def.type_namespace.resolve(heap);
+        let ty_name = ty_def.type_name.resolve(heap).unwrap();
+        // TODO: create field type
+        // let fields = ty_index.resolve_fields(table).unwrap();
+        for (method_index, method_def) in ty_index.resolve_methods(table) {
+            let full_name = Self::get_method_full_name(
+                namespace,
+                ty_name,
+                method_def.name.resolve(heap).unwrap(),
+            );
+            let signature = method_def.resolve_signature(heap);
+            self.emit_wasm_function_header(&full_name, method_index, signature);
+        }
+    }
+
+    fn emit_wasm_function_header(
         &mut self,
         name: &str,
         index: MethodDefIndex,
@@ -297,16 +332,12 @@ pub fn compile(image: &Image) -> Vec<u8> {
         ctx.emit_wasm_member_ref(index, member_ref, table, root.heap);
     }
 
-    for (index, method) in table.list_method_def() {
-        let name = method.name.resolve(root.heap);
-        let signature = method.resolve_signature(root.heap);
-
-        ctx.emit_wasm_function_header(name, index, signature);
+    for (ty_index, ty_def) in table.list_type_def() {
+        ctx.emit_wasm_type_header(ty_index, ty_def, table, root.heap);
     }
 
-    for (_index, method) in table.list_method_def() {
-        let body = method.resolve_body(image);
-        ctx.emit_wasm_function_body(&body);
+    for (_method_index, method_def) in table.list_method_def() {
+        ctx.emit_wasm_function_body(&method_def.resolve_body(image));
     }
 
     ctx.finish()
@@ -317,13 +348,8 @@ pub fn dump(image: &Image) {
     let table = &root.metadata_stream.table;
 
     for (_index, method) in table.list_method_def() {
-        let name = method.name.resolve(root.heap);
-        let signature: MethodDefSig = method
-            .signature
-            .resolve(root.heap)
-            .pread_with(0, scroll::LE)
-            .unwrap();
-
+        let name = method.name.resolve(root.heap).unwrap();
+        let signature = method.resolve_signature(root.heap);
         println!("{}: {:?}", name, signature);
     }
 }
