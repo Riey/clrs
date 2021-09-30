@@ -62,21 +62,6 @@ make_table! {
     }
 }
 
-impl MethodDefIndex {
-    pub fn resolve_params(self, table: &MetadataTable) -> Option<&[Param]> {
-        let method = self.resolve_table(table)?;
-        let next_index = Self(self.0 + 1);
-
-        let start = method.param_list.0 as usize - 1;
-        let end = next_index
-            .resolve_table(table)
-            .map(|m| m.param_list.0 as usize - 1)
-            .unwrap_or(table.param.len());
-
-        Some(&table.param[start..end])
-    }
-}
-
 num_tryctx!(u8 u16 u32 u64);
 
 bitflags_tryctx! {
@@ -672,6 +657,7 @@ impl MemberRef {
     pub fn resolve_signature(self, heap: Heap) -> MethodDefSig {
         self.signature
             .resolve(heap)
+            .unwrap()
             .pread_with(0, scroll::LE)
             .expect("Parse Signature")
     }
@@ -681,6 +667,7 @@ impl MethodDef {
     pub fn resolve_signature(self, heap: Heap) -> MethodDefSig {
         self.signature
             .resolve(heap)
+            .unwrap()
             .pread_with(0, scroll::LE)
             .expect("Parse Signature")
     }
@@ -689,3 +676,58 @@ impl MethodDef {
         image.get_data(self.rva).expect("Parse MethodBody")
     }
 }
+
+macro_rules! define_resolve {
+    ($ty:ty, $fn_name:ident, $ret_ty:ty, $ret_index:ty, $def_field:ident, $table_field:ident) => {
+        impl $ty {
+            pub fn $fn_name(
+                self,
+                table: &MetadataTable,
+            ) -> impl Iterator<Item = ($ret_index, &$ret_ty)> {
+                let mut index = self
+                    .resolve_table(table)
+                    .map(|d| d.$def_field)
+                    .unwrap_or_default();
+                let end = Self(self.0 + 1)
+                    .resolve_table(table)
+                    .map(|d| d.$def_field)
+                    .unwrap_or_default();
+
+                std::iter::from_fn(move || {
+                    if index == end {
+                        None
+                    } else {
+                        let r = index.resolve_table(table).map(|d| (index, d));
+                        index.0 += 1;
+                        r
+                    }
+                })
+            }
+        }
+    };
+}
+
+define_resolve!(
+    MethodDefIndex,
+    resolve_params,
+    Param,
+    ParamIndex,
+    param_list,
+    param
+);
+define_resolve!(
+    TypeDefIndex,
+    resolve_fields,
+    Field,
+    FieldIndex,
+    field_list,
+    field
+);
+define_resolve!(
+    TypeDefIndex,
+    resolve_methods,
+    MethodDef,
+    MethodDefIndex,
+    method_list,
+    method_def
+);
