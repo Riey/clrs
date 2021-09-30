@@ -106,20 +106,20 @@ make_single_index!(
 );
 
 impl StringIndex {
-    pub fn resolve<'a>(self, heap: Heap<'a>) -> &'a str {
-        heap.ref_string(self.0 as usize).unwrap()
+    pub fn resolve<'a>(self, heap: Heap<'a>) -> Option<&'a str> {
+        heap.ref_string(self.0 as usize)
     }
 }
 
 impl UserStringIndex {
-    pub fn resolve<'a>(self, heap: Heap<'a>) -> &'a [u8] {
-        heap.ref_user_string(self.0 as usize).unwrap()
+    pub fn resolve<'a>(self, heap: Heap<'a>) -> Option<&'a [u8]> {
+        heap.ref_user_string(self.0 as usize)
     }
 }
 
 impl BlobIndex {
-    pub fn resolve<'a>(self, heap: Heap<'a>) -> &'a [u8] {
-        heap.ref_blob(self.0 as usize).unwrap()
+    pub fn resolve<'a>(self, heap: Heap<'a>) -> Option<&'a [u8]> {
+        heap.ref_blob(self.0 as usize)
     }
 }
 
