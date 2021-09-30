@@ -221,12 +221,15 @@ const GUID_SIZE: usize = 128 / 8;
 
 impl<'a> Heap<'a> {
     pub fn list_user_string(self) -> impl Iterator<Item = (UserStringIndex, &'a [u8])> {
-        let mut index = 0;
+        let mut index = 1;
 
-        std::iter::from_fn(move || {
-            index += 1;
-            self.ref_user_string(index)
-                .map(|s| (UserStringIndex(index as u32), s))
+        std::iter::from_fn(move || match self.ref_user_string_with_length(index) {
+            Some((s, len)) => {
+                let r = Some((UserStringIndex(index as u32), s));
+                index += len;
+                r
+            }
+            None => None,
         })
         .fuse()
     }
@@ -240,16 +243,25 @@ impl<'a> Heap<'a> {
         ret.split('\0').next()
     }
 
-    pub fn ref_user_string(self, mut index: usize) -> Option<&'a [u8]> {
+    fn ref_user_string_with_length(self, index: usize) -> Option<(&'a [u8], usize)> {
         if index == 0 {
             return None;
         }
 
-        let length: U = self.user_string.gread_with(&mut index, scroll::LE).ok()?;
+        let mut offset = index;
 
+        let length: U = self.user_string.gread_with(&mut offset, scroll::LE).ok()?;
+        let full_len = offset - index + length.0 as usize;
         // cut tralling NULL
-        self.user_string
-            .get(index..index + length.0.saturating_sub(1) as usize)
+        let s = self
+            .user_string
+            .get(index..index + length.0.saturating_sub(1) as usize)?;
+
+        Some((s, full_len))
+    }
+
+    pub fn ref_user_string(self, index: usize) -> Option<&'a [u8]> {
+        self.ref_user_string_with_length(index).map(|(s, _)| s)
     }
 
     pub fn ref_blob(self, mut index: usize) -> Option<&'a [u8]> {
