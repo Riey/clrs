@@ -63,7 +63,7 @@ impl WasmContext {
         let mut data = DataSection::new();
         let mut string_cache = HashMap::new();
 
-        let mut offset = 0;
+        let mut offset = 1;
 
         for (index, s) in root.heap.list_user_string() {
             string_cache.insert(
