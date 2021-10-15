@@ -100,6 +100,21 @@ impl<'a> TryFromCtx<'a, Endian> for MethodDefSig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FieldSig {
+    pub ty: Type,
+}
+
+impl<'a> TryFromCtx<'a, Endian> for FieldSig {
+    type Error = scroll::Error;
+
+    fn try_from_ctx(src: &'a [u8], ctx: Endian) -> Result<(Self, usize), Self::Error> {
+        let offset = &mut 0;
+        let ty = src.gread_with(offset, ctx)?;
+        Ok((Self { ty }, *offset))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TypeDefOrRefOrSpecEncoded {
     TypeDef(TypeDefIndex),
     TypeRef(TypeRefIndex),

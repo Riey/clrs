@@ -15,6 +15,8 @@ pub enum Instruction {
     LdcR4(f32),
     LdcR8(f64),
     LdStr(MetadataToken),
+    LdFld(MetadataToken),
+    StFld(MetadataToken),
     Dup,
     Pop,
     Jmp,
@@ -84,6 +86,8 @@ impl<'a> TryFromCtx<'a, Endian> for Instruction {
             0x41 => Self::BgeUn,
 
             0x72 => Self::LdStr(src.gread_with(offset, ctx)?),
+            0x7B => Self::LdFld(src.gread_with(offset, ctx)?),
+            0x7D => Self::StFld(src.gread_with(offset, ctx)?),
             _ => todo!("code: {:X}", opcode),
         };
 

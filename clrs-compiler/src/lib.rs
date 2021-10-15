@@ -153,11 +153,42 @@ impl WasmContext {
     fn convert_wasm_return(ret: &RetType) -> Vec<ValType> {
         match ret {
             RetType::Void => vec![],
-            _ => todo!(),
+            RetType::Type { byref: true, .. } => vec![VAL_PTR],
+            RetType::Type { byref: false, ty } => {
+                match ty {
+                    Type::I | Type::U => vec![VAL_PTR],
+                    Type::Boolean
+                    | Type::Char
+                    | Type::I1
+                    | Type::I2
+                    | Type::I4
+                    | Type::U1
+                    | Type::U2
+                    | Type::U4 => vec![ValType::I32],
+                    Type::I8 | Type::U8 => vec![ValType::I64],
+                    Type::R4 => vec![ValType::F32],
+                    Type::R8 => vec![ValType::F64],
+                    Type::String => {
+                        // 3 word PTR/LEN/CAP
+                        vec![VAL_PTR; 3]
+                    }
+                    Type::SzArray { .. } => {
+                        // 2 word PTR/LEN
+                        vec![VAL_PTR; 2]
+                    }
+                    _ => todo!(),
+                }
+            }
+            _ => todo!("{:?}", ret),
         }
     }
 
-    fn convert_wasm_function(&self, body: &MethodBody) -> Function {
+    fn convert_wasm_function(
+        &self,
+        body: &MethodBody,
+        table: &MetadataTable,
+        heap: Heap,
+    ) -> Function {
         // TODO: locals
         let mut f = Function::new(vec![]);
 
@@ -194,6 +225,18 @@ impl WasmContext {
                 }
                 Instruction::LdArg(n) => {
                     f.instruction(WasmInst::LocalGet(*n));
+                }
+                Instruction::LdFld(token) => {
+                    let field_index = token.as_field().unwrap();
+                    let field = field_index.resolve_table(table).unwrap();
+                    let sig = field.resolve_signature(heap);
+                    dbg!(sig);
+                    // TODO
+                }
+                Instruction::StFld(token) => {
+                    let field_index = token.as_field().unwrap();
+                    let field = field_index.resolve_table(table).unwrap();
+                    // TODO
                 }
                 _ => todo!("{:?}", inst),
             }
@@ -263,16 +306,16 @@ impl WasmContext {
                 let namespace = ty_ref.type_namespace.resolve(heap);
                 let name = ty_ref.type_name.resolve(heap);
 
+                let fullname =
+                    Self::get_method_full_name(namespace, name.unwrap(), member_func_name);
+
                 let fn_index = self.compute_fn_index(true);
                 self.imports.import(
                     "env",
-                    Some(&Self::get_method_full_name(
-                        namespace,
-                        name.unwrap(),
-                        member_func_name,
-                    )),
+                    Some(&fullname),
                     EntityType::Function(member_func_ty.type_index),
                 );
+
                 self.member_ref_cache
                     .insert(member_ref_index, MemberRefCacheData { fn_index });
             }
@@ -317,8 +360,13 @@ impl WasmContext {
         self.exports.export(name, Export::Function(fn_index));
     }
 
-    pub fn emit_wasm_function_body(&mut self, body: &MethodBody) {
-        let func = self.convert_wasm_function(body);
+    pub fn emit_wasm_function_body(
+        &mut self,
+        body: &MethodBody,
+        table: &MetadataTable,
+        heap: Heap,
+    ) {
+        let func = self.convert_wasm_function(body, table, heap);
         self.codes.function(&func);
     }
 }
@@ -337,7 +385,7 @@ pub fn compile(image: &Image) -> Vec<u8> {
     }
 
     for (_method_index, method_def) in table.list_method_def() {
-        ctx.emit_wasm_function_body(&method_def.resolve_body(image));
+        ctx.emit_wasm_function_body(&method_def.resolve_body(image), table, root.heap);
     }
 
     ctx.finish()

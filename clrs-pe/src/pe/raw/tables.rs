@@ -3,7 +3,7 @@ use crate::{
     pe::{Heap, Image},
 };
 
-use super::{indices::*, MethodDefSig, PeCtx};
+use super::{indices::*, FieldSig, MethodDefSig, PeCtx};
 use clrs_derive::{make_table, ClrPread};
 use scroll::{ctx::TryFromCtx, Pread};
 
@@ -653,25 +653,27 @@ pub struct TypeSpec {
     pub signature: BlobIndex,
 }
 
-impl MemberRef {
-    pub fn resolve_signature(self, heap: Heap) -> MethodDefSig {
-        self.signature
-            .resolve(heap)
-            .unwrap()
-            .pread_with(0, scroll::LE)
-            .expect("Parse Signature")
-    }
+macro_rules! define_resolve_signature {
+    ($ty:ty, $fn_name:ident, $ret_ty:ty, $def_field:ident) => {
+        impl $ty {
+            pub fn $fn_name(self, heap: Heap) -> $ret_ty {
+                self.$def_field
+                    .resolve(heap)
+                    .unwrap()
+                    .pread_with(0, scroll::LE)
+                    .expect("Parse Signature")
+            }
+        }
+    };
 }
 
-impl MethodDef {
-    pub fn resolve_signature(self, heap: Heap) -> MethodDefSig {
-        self.signature
-            .resolve(heap)
-            .unwrap()
-            .pread_with(0, scroll::LE)
-            .expect("Parse Signature")
-    }
+define_resolve_signature!(MemberRef, resolve_signature, MethodDefSig, signature);
 
+define_resolve_signature!(MethodDef, resolve_signature, MethodDefSig, signature);
+
+define_resolve_signature!(Field, resolve_signature, FieldSig, signature);
+
+impl MethodDef {
     pub fn resolve_body(self, image: &Image) -> MethodBody {
         image.get_data(self.rva).expect("Parse MethodBody")
     }

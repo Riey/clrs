@@ -1,5 +1,3 @@
-#![recursion_limit = "256"]
-
 #[macro_use]
 mod utils;
 pub mod cil;
